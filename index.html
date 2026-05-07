@@ -195,6 +195,9 @@ textarea.ep-inp{resize:vertical;min-height:70px;font-family:inherit;line-height:
 .ep-del-btn{flex:1;padding:9px;border:1.5px solid #fca5a5;border-radius:var(--r-md);font-size:12px;cursor:pointer;color:var(--danger);background:var(--surface);font-weight:600;font-family:inherit;transition:background .15s}
 .ep-del-btn:hover{background:#fef2f2}
 .ep-save-chip{font-size:10px;color:var(--text-3);align-self:center;margin-left:auto}
+.ep-sync-btn{flex:1;padding:9px;border:1.5px solid var(--accent-border);border-radius:var(--r-md);font-size:12px;cursor:pointer;color:var(--accent);background:var(--accent-bg);font-weight:600;font-family:inherit;transition:background .15s}
+.ep-sync-btn:hover{background:#dbeafe}
+.ep-status{font-size:10px;padding:4px 0 0;min-height:14px;font-weight:500}
 
 /* ── SYNC PANEL ── */
 #sync-panel{position:fixed;top:0;right:-340px;bottom:0;width:320px;background:var(--surface);border-left:1px solid var(--border);z-index:200;display:flex;flex-direction:column;transition:right .22s cubic-bezier(.25,.46,.45,.94);box-shadow:var(--shadow-lg)}
@@ -285,7 +288,6 @@ textarea.ep-inp{resize:vertical;min-height:70px;font-family:inherit;line-height:
   <div id="trash-zone">🗑 Drag bar here to erase</div>
   <div id="sb-footer">
     <button id="sync-btn">☁ Sync to Calendar</button>
-    <button id="addgrp-btn">⊕ Add Category</button>
   </div>
 </div>
 
@@ -396,9 +398,16 @@ textarea.ep-inp{resize:vertical;min-height:70px;font-family:inherit;line-height:
         </div>
         <div style="font-size:10px;color:#bbb;margin-top:4px" id="ep-lock-hint">Soft times are shown with a dashed border on the calendar</div>
       </div>
+      <!-- Google Calendar target -->
+      <div class="ep-row" id="ep-cal-row">
+        <div class="ep-row-lbl">Google Calendar</div>
+        <select class="ep-inp" id="ep-cal-sel" style="appearance:auto"></select>
+        <div id="ep-sync-status" class="ep-status" style="color:var(--text-3)"></div>
+      </div>
     </div>
     <div class="ep-footer">
       <button class="ep-del-btn" id="ep-del">🗑 Remove from calendar</button>
+      <button class="ep-sync-btn" id="ep-sync">☁ Sync</button>
     </div>
   </div>
 </div>
@@ -419,6 +428,7 @@ textarea.ep-inp{resize:vertical;min-height:70px;font-family:inherit;line-height:
       <a id="sp-gcal-link" href="https://calendar.google.com/calendar/r/settings/createcalendar" target="_blank">
         ＋ Create a new calendar in Google Calendar ↗
       </a>
+      <button id="sp-refresh-cals" style="margin-top:8px;width:100%;padding:6px;background:none;border:1.5px dashed var(--border);border-radius:var(--r-sm);font-size:10px;color:var(--text-3);cursor:pointer;font-family:inherit;transition:all .15s" onmouseover="this.style.borderColor='var(--text-3)';this.style.color='var(--text-2)'" onmouseout="this.style.borderColor='';this.style.color=''">↻ Refresh calendar list</button>
     </div>
     <div class="spsec">
       <label>Invite everyone (optional)</label>
@@ -1145,19 +1155,25 @@ function schedReCal(){if(!rafPend){rafPend=true;requestAnimationFrame(()=>{rCal(
 function weekBars(wi){
   const seen=new Set();
   for(let c=0;c<7;c++)(S.cells[wi*7+c]||[]).forEach(id=>seen.add(id));
-  const bars=[]; let layer=0;
+  const bars=[];
   for(const mag of allMags()){
     if(!seen.has(mag.id)) continue;
     let run=null;
     for(let c=0;c<7;c++){
       const has=(S.cells[wi*7+c]||[]).includes(mag.id);
       if(has){run=run||{s:c};run.e=c;}
-      else{if(run){bars.push({...run,mag,layer});run=null;}}
+      else{if(run){bars.push({...run,mag});run=null;}}
     }
-    if(run) bars.push({...run,mag,layer});
-    layer++;
+    if(run) bars.push({...run,mag});
   }
-  return bars;
+  bars.sort((a,b)=>{
+    const ta=S.times[(wi*7+a.s)+'-'+a.mag.id];
+    const tb=S.times[(wi*7+b.s)+'-'+b.mag.id];
+    const pa=ta?.start?(parseInt(ta.start)<12?1:2):0;
+    const pb=tb?.start?(parseInt(tb.start)<12?1:2):0;
+    return pa-pb;
+  });
+  return bars.map((b,i)=>({...b,layer:i}));
 }
 
 function rCal(){
@@ -1281,6 +1297,7 @@ function openEventPanel(di,magId){
   document.getElementById('ep-notes').value=tm.notes||'';
   document.getElementById('ep-meet').checked=tm.meet||false;
   updateLockUI(tm.locked||false);
+  populateEpCalSel();
 }
 
 // Reassign label from event panel
@@ -1357,6 +1374,53 @@ document.getElementById('ep-del').addEventListener('click',()=>{
   save(); rCal();
 });
 
+document.getElementById('ep-sync').addEventListener('click',async()=>{
+  if(!selBar) return;
+  if(!_gcalToken){showEpStatus('Sign in via ☁ Sync to Calendar first',false);return;}
+  const tk=getTk(); if(!tk) return;
+  const mag=getMag(selBar.magId); if(!mag) return;
+  const tm=S.times[tk]||{};
+  const dt=dayDate(selBar.di); const ds=dt.toISOString().slice(0,10);
+  const dtNext=new Date(dt); dtNext.setDate(dtNext.getDate()+1);
+  const dsNext=dtNext.toISOString().slice(0,10);
+  const calId=tm.calId||S.syncCalId||'primary';
+  const colorId=GCOL[mag.color]||'9';
+  const desc=[S.project,tm.notes].filter(Boolean).join('\n\n');
+  const allDay=!tm.start||!tm.end;
+  const evBody={
+    summary:mag.label,
+    start:allDay?{date:ds}:{dateTime:ds+'T'+tm.start+':00',timeZone:TZ},
+    end:allDay?{date:dsNext}:{dateTime:ds+'T'+tm.end+':00',timeZone:TZ},
+    description:desc||undefined,
+    location:tm.location||undefined,
+    colorId,
+  };
+  showEpStatus('Syncing…',null);
+  const calPath='/calendars/'+encodeURIComponent(calId)+'/events';
+  const doCreate=async()=>{
+    const res=await gcalFetch('POST',calPath,evBody);
+    if(res?.id){S.eventIds[tk]=res.id;save();}
+    return res;
+  };
+  try{
+    const ex=S.eventIds[tk];
+    if(ex){
+      try{
+        await gcalFetch('PATCH',calPath+'/'+encodeURIComponent(ex),evBody);
+      }catch(e){
+        if(String(e).includes('404')||String(e).includes('410')){delete S.eventIds[tk];await doCreate();}
+        else throw e;
+      }
+    } else {
+      await doCreate();
+    }
+    showEpStatus('✓ Synced to Google Calendar',true);
+  }catch(err){
+    showEpStatus('Error: '+(err?.message||String(err)),false);
+    console.error('ep-sync error',err);
+  }
+});
+
 // ── Mode / toolbar ───────────────────────────────────────────
 function updateModeUI(){}
 document.getElementById('proj-name').addEventListener('blur',e=>{
@@ -1371,7 +1435,7 @@ dateInp.addEventListener('change',e=>{S.startDate=e.target.value;save();rCal();}
 const weeksInp=document.getElementById('weeks-input');
 weeksInp.value=S.weeks;
 weeksInp.addEventListener('change',e=>{S.weeks=Math.max(1,Math.min(52,parseInt(e.target.value)||13));save();rCal();});
-document.getElementById('addgrp-btn').addEventListener('click',()=>addFolder());
+// Add Category button is rendered inside rSidebar()
 document.addEventListener('keydown',e=>{
   if(e.target.isContentEditable||e.target.tagName==='INPUT') return;
   if(e.key==='Escape'){S.activeMag=null;selBar=null;document.getElementById('event-panel').classList.remove('open');save();rSidebar();}
@@ -1390,6 +1454,27 @@ document.getElementById('sp-google-signin').addEventListener('click',()=>{
   });
 });
 
+let _calList=[];
+function populateEpCalSel(){
+  const sel=document.getElementById('ep-cal-sel');
+  if(!sel) return;
+  if(!_gcalToken){sel.innerHTML='<option value="">Sign in to sync</option>';return;}
+  const tk=getTk(); const curCalId=(tk&&S.times[tk]?.calId)||S.syncCalId;
+  sel.innerHTML='';
+  const src=_calList.length?_calList:[{id:S.syncCalId||'primary',summary:S.syncCalId||'Primary Calendar'}];
+  src.forEach(c=>{
+    const opt=document.createElement('option');
+    opt.value=c.id; opt.textContent=c.summary||(c.id.length>40?c.id.slice(0,40)+'…':c.id);
+    if(c.id===curCalId) opt.selected=true;
+    sel.appendChild(opt);
+  });
+  sel.onchange=e=>{const tk=getTk();if(tk){S.times[tk]=S.times[tk]||{};S.times[tk].calId=e.target.value;save();}};
+}
+function showEpStatus(msg,ok){
+  const el=document.getElementById('ep-sync-status'); if(!el) return;
+  el.textContent=msg;
+  el.style.color=ok===true?'#16a34a':ok===false?'#dc2626':'var(--text-3)';
+}
 async function loadCalendarDropdown(){
   const sel=document.getElementById('sp-cal-sel');
   sel.style.display='block';
@@ -1401,6 +1486,7 @@ async function loadCalendarDropdown(){
     const raw=await gcalFetch('GET','/users/me/calendarList?maxResults=50');
     let cals=(raw?.items||[]).map(c=>({id:c.id,summary:c.summary}));
     cals=cals.filter(c=>!c.id.endsWith('#holiday@group.v.calendar.google.com'));
+    _calList=cals;
     if(cals.length===0) throw new Error('No calendars returned — try refreshing');
     sel.innerHTML='';
     cals.forEach(c=>{
@@ -1476,6 +1562,14 @@ function renderSyncPanel(){
   });
 }
 document.getElementById('sp-global').addEventListener('change',e=>{S.syncGlobal=e.target.value;save();});
+
+document.getElementById('sp-refresh-cals')?.addEventListener('click',async()=>{
+  const btn=document.getElementById('sp-refresh-cals');
+  if(btn) btn.textContent='↻ Refreshing…';
+  await loadCalendarDropdown();
+  populateEpCalSel();
+  if(btn) btn.textContent='↻ Refresh calendar list';
+});
 
 function buildEvents(){
   const evts=[];
