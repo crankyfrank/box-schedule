@@ -1173,7 +1173,14 @@ function weekBars(wi){
     const pb=tb?.start?(parseInt(tb.start)<12?1:2):0;
     return pa-pb;
   });
-  return bars.map((b,i)=>({...b,layer:i}));
+  // Assign layers per-column so bars on different days don't stack globally
+  const colLayer=new Array(7).fill(0);
+  return bars.map(b=>{
+    let layer=0;
+    for(let c=b.s;c<=b.e;c++) layer=Math.max(layer,colLayer[c]);
+    for(let c=b.s;c<=b.e;c++) colLayer[c]=layer+1;
+    return {...b,layer};
+  });
 }
 
 function rCal(){
