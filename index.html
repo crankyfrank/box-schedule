@@ -67,6 +67,11 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg)
 .mdot:hover{transform:scale(1.3)}
 .gdot{width:13px;height:13px;border-radius:3px;flex-shrink:0;cursor:pointer;transition:transform .1s;box-shadow:0 0 0 1.5px rgba(0,0,0,.15);margin-right:7px}
 .gdot:hover{transform:scale(1.25)}
+.grplbl-chip{cursor:grab;font-size:9px;padding:2px 5px;border-radius:3px;opacity:0;line-height:1.4;font-weight:600;letter-spacing:.2px;white-space:nowrap;transition:opacity .1s,background .1s;border:1.5px solid transparent;flex-shrink:0;color:var(--text-2)}
+.group-hdr:hover .grplbl-chip{opacity:.7}
+.grplbl-chip:hover{opacity:1!important;background:var(--surface-2)!important}
+.grplbl-chip.grabbing{opacity:.35;cursor:grabbing}
+.grplbl-chip.active{opacity:1!important;background:var(--accent-bg)!important;border-color:var(--accent-border)!important;color:var(--accent)!important}
 .mlabel{font-size:11.5px;color:var(--text-1);flex:1;outline:none;min-width:0;font-weight:500;cursor:grab;border-radius:3px;user-select:none}
 .mlabel[contenteditable="true"]{cursor:text;user-select:text}
 .mlabel[contenteditable="true"]:focus{background:var(--accent-bg);padding:0 3px;margin:0 -3px}
@@ -550,6 +555,7 @@ body.print-preview .bar.soft{outline:none}
   </div>
   <div id="sp-footer">
     <button class="spbtn" id="sp-push" style="margin:0;width:100%">☁ Push to Google Calendar</button>
+    <button class="spbtn" id="sp-pull" style="margin:6px 0 0;width:100%;background:var(--surface-2);color:var(--text-2);border:1.5px solid var(--border)">↓ Pull changes from Google Calendar</button>
     <div class="spstatus" id="sp-status" style="padding:6px 0 0"></div>
   </div>
 </div>
@@ -839,7 +845,14 @@ function save(){
 }
 
 function allMags(){return S.groups.flatMap(g=>g.magnets.flatMap(m=>[m,...(m.subs||[])]));}
-function getMag(id){return allMags().find(m=>m.id===id);}
+function getGroupVirtualMag(gid){
+  const g=S.groups.find(x=>x.id===gid);
+  return g?{id:'grplbl-'+gid,label:g.name,color:g.color,_isGroupLabel:true,groupId:gid}:null;
+}
+function getMag(id){
+  if(id&&id.startsWith('grplbl-')) return getGroupVirtualMag(id.slice(7));
+  return allMags().find(m=>m.id===id);
+}
 function getParentMag(subId){
   for(const g of S.groups) for(const m of g.magnets) if((m.subs||[]).some(s=>s.id===subId)) return m;
   return null;
@@ -1073,11 +1086,20 @@ document.addEventListener('pointerup', e=>{
 
   if(pd.type==='magnet'){
     document.querySelector(`.mag[data-magid="${pd.magId}"]`)?.classList.remove('grabbing');
+    const isGroupLabel=pd.magId&&pd.magId.startsWith('grplbl-');
     if(!wasMoved){
       // Click: toggle active
       S.activeMag=(S.activeMag===pd.magId)?null:pd.magId;
       S.eraseMode=false;
       updateModeUI(); save(); rSidebar();
+    } else if(isGroupLabel){
+      // Group label chips can only be dropped on calendar cells, not moved between groups
+      if(cell){
+        const di=+cell.dataset.di;
+        applyDay(di,'add',pd.magId);
+      }
+      S.activeMag=pd.magId;
+      save(); rSidebar(); rCal();
     } else {
       // Check if dropped on a different sidebar group
       const srcGrp=S.groups.find(g=>g.magnets.some(m=>m.id===pd.magId));
@@ -1174,6 +1196,7 @@ function makeGroupEl(g){
   hdr.innerHTML=`<span class="garrow ${g.open?'open':''}"></span>
     <div class="gdot" style="background:${g.color||'#888'}" title="Change group colour"></div>
     <span class="gname" contenteditable="true" spellcheck="false">${g.name}</span>
+    <span class="grplbl-chip mag${S.activeMag==='grplbl-'+g.id?' active':''}" data-magid="grplbl-${g.id}" title="Drag to use '${g.name}' as a generic label on the calendar">⠿ ${g.name}</span>
     <span class="gadd" title="Add label">+</span>
     <span class="gdel" title="Delete section">✕</span>`;
   hdr.querySelector('.garrow').addEventListener('click',()=>{g.open=!g.open;save();rSidebar();});
@@ -1184,6 +1207,7 @@ function makeGroupEl(g){
   hdr.addEventListener('click',e=>{
     if(e.target.classList.contains('garrow')||e.target.classList.contains('gadd')||
        e.target.classList.contains('gdel')||e.target.classList.contains('gdot')||
+       e.target.classList.contains('grplbl-chip')||
        e.target.isContentEditable) return;
     g.open=!g.open;save();rSidebar();
   });
@@ -1510,11 +1534,24 @@ function weekBars(wi){
   const seen=new Set();
   for(let c=0;c<7;c++)(S.cells[wi*7+c]||[]).forEach(id=>seen.add(id));
   const bars=[];
+  // Regular magnets
   for(const mag of allMags()){
     if(!seen.has(mag.id)) continue;
     let run=null;
     for(let c=0;c<7;c++){
       const has=(S.cells[wi*7+c]||[]).includes(mag.id);
+      if(has){run=run||{s:c};run.e=c;}
+      else{if(run){bars.push({...run,mag});run=null;}}
+    }
+    if(run) bars.push({...run,mag});
+  }
+  // Group label virtual magnets
+  for(const id of seen){
+    if(!id.startsWith('grplbl-')) continue;
+    const mag=getMag(id); if(!mag) continue;
+    let run=null;
+    for(let c=0;c<7;c++){
+      const has=(S.cells[wi*7+c]||[]).includes(id);
       if(has){run=run||{s:c};run.e=c;}
       else{if(run){bars.push({...run,mag});run=null;}}
     }
@@ -1850,6 +1887,12 @@ async function loadCalendarDropdown(){
     _calList=cals;
     if(cals.length===0) throw new Error('No calendars returned — try refreshing');
     sel.innerHTML='';
+    // If no calendar chosen yet, add a blank placeholder so user must deliberately pick
+    if(!S.syncCalId){
+      const blank=document.createElement('option');
+      blank.value=''; blank.textContent='— choose a calendar —';
+      sel.appendChild(blank);
+    }
     cals.forEach(c=>{
       const opt=document.createElement('option');
       opt.value=c.id;
@@ -1864,8 +1907,8 @@ async function loadCalendarDropdown(){
     }
     sel.disabled=false;
     sel.onchange=e=>{S.syncCalId=e.target.value;save();};
-    // Set state to first selected value
-    S.syncCalId=sel.value; save();
+    // Only update state if a real calendar is selected (don't overwrite blank state)
+    if(sel.value) { S.syncCalId=sel.value; save(); }
   }catch(err){
     sel.innerHTML=`<option value="${S.syncCalId}">${S.syncCalId||'(none)'}</option>`;
     sel.disabled=false;
@@ -1958,8 +2001,48 @@ function buildEvents(){
   }
   return evts;
 }
+// ── Calendar picker modal (shown when no calendar is selected) ──
+async function pickCalendarModal(){
+  return new Promise(resolve=>{
+    // Build a small modal using the existing modal infrastructure
+    const overlay=document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+    const box=document.createElement('div');
+    box.style.cssText='background:var(--surface);border-radius:var(--r-lg);padding:24px;width:340px;max-width:92vw;box-shadow:var(--shadow-lg);font-family:inherit';
+    const cals=_calList.length?_calList:[];
+    box.innerHTML=`<div style="font-size:14px;font-weight:700;color:var(--text-1);margin-bottom:4px">Which calendar should I sync to?</div>
+      <div style="font-size:11px;color:var(--text-3);margin-bottom:14px">Choose a Google Calendar for this schedule. You can change it anytime in the sync panel.</div>
+      <select style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:12px;background:var(--surface-2);color:var(--text-1);font-family:inherit;appearance:auto;margin-bottom:14px" id="cpicker-sel">
+        ${cals.map(c=>`<option value="${c.id}">${c.summary||c.id}</option>`).join('')}
+        ${cals.length===0?'<option value="primary">Primary Calendar</option>':''}
+      </select>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button id="cpicker-cancel" style="padding:7px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);color:var(--text-2);font-size:12px;cursor:pointer;font-family:inherit">Cancel</button>
+        <button id="cpicker-ok" style="padding:7px 14px;border:none;border-radius:var(--r-md);background:var(--accent);color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Sync to this calendar</button>
+      </div>`;
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    overlay.querySelector('#cpicker-cancel').onclick=()=>{document.body.removeChild(overlay);resolve(null);};
+    overlay.querySelector('#cpicker-ok').onclick=()=>{
+      const val=overlay.querySelector('#cpicker-sel').value;
+      document.body.removeChild(overlay);
+      // Update the main dropdown to reflect the chosen calendar
+      const dd=document.getElementById('sp-cal-sel');
+      if(dd) dd.value=val;
+      resolve(val||null);
+    };
+  });
+}
+
 document.getElementById('sp-push').addEventListener('click',async()=>{
   const st=document.getElementById('sp-status');
+  // If no calendar selected, prompt the user to pick one
+  if(!S.syncCalId){
+    st.textContent='';
+    const chosen=await pickCalendarModal();
+    if(!chosen){st.textContent='Sync cancelled — no calendar selected.';return;}
+    S.syncCalId=chosen; save();
+  }
   const evts=buildEvents();
   if(evts.length===0){
     st.textContent='Nothing to sync — add magnets to the calendar first, or check labels are ticked below.';
@@ -2021,6 +2104,96 @@ document.getElementById('sp-del').addEventListener('click',async()=>{
     try{await gcalFetch('DELETE','/calendars/'+encodeURIComponent(S.syncCalId)+'/events/'+encodeURIComponent(eid));delete S.eventIds[key];ok++;}catch(e){}
   }
   save(); st.textContent=`Deleted ${ok} events`;
+});
+
+// ── Two-way pull: bring Google Calendar changes back into Box Schedule ─────
+document.getElementById('sp-pull').addEventListener('click',async()=>{
+  const st=document.getElementById('sp-status');
+  if(!S.syncCalId){
+    const chosen=await pickCalendarModal();
+    if(!chosen){st.textContent='Pull cancelled — no calendar selected.';return;}
+    S.syncCalId=chosen; save();
+  }
+  if(!Object.keys(S.eventIds).length){
+    st.textContent='Nothing to pull — push your schedule to Google Calendar first.';
+    return;
+  }
+  st.textContent='Pulling from Google Calendar…';
+  const calPath='/calendars/'+encodeURIComponent(S.syncCalId)+'/events';
+  // Build reverse map: gcal event ID → bx key (di-magId)
+  const reverseMap={};
+  for(const [key,eid] of Object.entries(S.eventIds)) reverseMap[eid]=key;
+  // Fetch all events in our schedule date range + a bit of buffer
+  const rangeStart=dayDate(0); rangeStart.setDate(rangeStart.getDate()-1);
+  const totalDays=S.weeks*7;
+  const rangeEnd=dayDate(totalDays);
+  const tMin=rangeStart.toISOString();
+  const tMax=rangeEnd.toISOString();
+  let gcalEvents=[];
+  try{
+    const raw=await gcalFetch('GET',calPath+'?singleEvents=true&orderBy=startTime&maxResults=2500&timeMin='+encodeURIComponent(tMin)+'&timeMax='+encodeURIComponent(tMax));
+    gcalEvents=raw?.items||[];
+  }catch(err){
+    st.style.color='#dc2626';
+    st.textContent='Could not fetch calendar: '+(err?.message||String(err));
+    return;
+  }
+  // Build a lookup by event ID
+  const gcalById={};
+  gcalEvents.forEach(ev=>{if(ev.id) gcalById[ev.id]=ev;});
+  let moved=0, deleted=0, unchanged=0;
+  const toRemoveFromTracking=[];
+  for(const [key,eid] of Object.entries(S.eventIds)){
+    const gcEv=gcalById[eid];
+    if(!gcEv){
+      // Event no longer exists in Google Calendar — it was deleted there
+      deleted++;
+      toRemoveFromTracking.push(key);
+      continue;
+    }
+    // Parse the event's current date in Google Calendar
+    const gcStartRaw=gcEv.start?.date||gcEv.start?.dateTime;
+    if(!gcStartRaw){unchanged++;continue;}
+    const gcDate=gcStartRaw.slice(0,10); // YYYY-MM-DD
+    // Find which di this key currently lives on in Box Schedule
+    const parts=key.split('-');
+    const currentDi=parseInt(parts[0]);
+    const magId=parts.slice(1).join('-');
+    // Find the di that matches gcDate
+    let targetDi=-1;
+    for(let di=0;di<totalDays;di++){
+      if(dayDate(di).toISOString().slice(0,10)===gcDate){targetDi=di;break;}
+    }
+    if(targetDi===-1||targetDi===currentDi){unchanged++;continue;}
+    // Date changed — move the magnet from currentDi to targetDi
+    applyDay(currentDi,'remove',magId);
+    applyDay(targetDi,'add',magId);
+    // Move any time info
+    const oldTk=currentDi+'-'+magId;
+    const newTk=targetDi+'-'+magId;
+    if(S.times[oldTk]){S.times[newTk]=S.times[oldTk];delete S.times[oldTk];}
+    // Update the key in eventIds
+    delete S.eventIds[key];
+    S.eventIds[newTk]=eid;
+    // Update time from Google Calendar if available
+    if(gcEv.start?.dateTime&&gcEv.end?.dateTime){
+      const st2=gcEv.start.dateTime.slice(11,16);
+      const en2=gcEv.end.dateTime.slice(11,16);
+      S.times[newTk]=S.times[newTk]||{};
+      S.times[newTk].start=st2;
+      S.times[newTk].end=en2;
+    }
+    moved++;
+  }
+  // Remove tracking for deleted events (optionally leave magnets in place)
+  toRemoveFromTracking.forEach(k=>{delete S.eventIds[k];});
+  save(); rCal();
+  const parts2=[];
+  if(moved) parts2.push(`${moved} event${moved>1?'s':''} moved`);
+  if(deleted) parts2.push(`${deleted} removed from Google Calendar (still on your schedule)`);
+  if(!moved&&!deleted) parts2.push('Everything is already up to date');
+  st.style.color=moved||deleted?'#d97706':'#16a34a';
+  st.textContent='↓ '+(parts2.join(' · '));
 });
 
 
