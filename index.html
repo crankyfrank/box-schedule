@@ -438,6 +438,7 @@ body.print-preview .bar.soft{outline:none}
         <div id="hol-status" style="font-size:10px;color:#888;margin-top:6px;min-height:14px;text-align:center"></div>
       </div>
     </div>
+    <span id="bxs-autosave-lbl" style="display:none;font-size:10px;color:var(--text-3);font-weight:500;transition:opacity .4s;white-space:nowrap"></span>
     <div style="position:relative;margin-left:8px">
       <button class="mdbtn" id="export-btn" style="background:#fafaf8">↓ Export</button>
       <div id="export-menu" style="display:none;position:absolute;right:0;top:32px;background:#fff;border:1px solid #e0e0da;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:300;min-width:210px;overflow:hidden">
@@ -860,6 +861,7 @@ function save(){
     if(idx){idx.name=S.project;idx.updatedAt=new Date().toISOString();}
     saveSchIndex();
   }catch(e){}
+  scheduleFileAutoSave(); // also write to linked .bxs file if one is open
 }
 
 function allMags(){return S.groups.flatMap(g=>g.magnets.flatMap(m=>[m,...(m.subs||[])]));}
@@ -2837,6 +2839,11 @@ const BXS_VERSION = 1;
 const BXS_EXT = '.bxs';
 const BXS_MIME = 'application/json';
 
+// Active file handle for auto-save (cleared on page load, re-established on Save to file)
+let _bxsFileHandle = null;
+let _bxsAutoSaveTimer = null;
+let _bxsAutoSaveEl = null; // status indicator in toolbar
+
 function scheduleToBxs(){
   return JSON.stringify({
     _bxs: BXS_VERSION,
@@ -2844,6 +2851,48 @@ function scheduleToBxs(){
     _saved: new Date().toISOString(),
     schedule: S,
   }, null, 2);
+}
+
+// Called from save() to trigger a debounced file write
+function scheduleFileAutoSave(){
+  if(!_bxsFileHandle) return; // no file linked this session
+  clearTimeout(_bxsAutoSaveTimer);
+  _bxsAutoSaveTimer = setTimeout(async ()=>{
+    try{
+      const writable = await _bxsFileHandle.createWritable();
+      await writable.write(scheduleToBxs());
+      await writable.close();
+      showAutoSaveStatus('✓ Saved');
+    }catch(e){
+      // Handle lost permission (e.g. file moved/deleted)
+      if(e.name==='NotAllowedError'||e.name==='SecurityError'){
+        _bxsFileHandle=null;
+        updateFileLinkedUI();
+      }
+      console.warn('Auto-save failed:',e);
+    }
+  }, 1500); // 1.5s debounce
+}
+
+function showAutoSaveStatus(msg){
+  if(!_bxsAutoSaveEl) return;
+  _bxsAutoSaveEl.textContent=msg;
+  clearTimeout(_bxsAutoSaveEl._fadeTimer);
+  _bxsAutoSaveEl.style.opacity='1';
+  _bxsAutoSaveEl._fadeTimer=setTimeout(()=>{_bxsAutoSaveEl.style.opacity='0.4';},2500);
+}
+
+function updateFileLinkedUI(){
+  if(!_bxsAutoSaveEl) return;
+  if(_bxsFileHandle){
+    _bxsAutoSaveEl.style.display='inline';
+    _bxsFileHandle.getFile().then(f=>{
+      _bxsAutoSaveEl.textContent='💾 '+f.name;
+      _bxsAutoSaveEl.style.opacity='0.6';
+    }).catch(()=>{});
+  } else {
+    _bxsAutoSaveEl.style.display='none';
+  }
 }
 
 async function saveScheduleToFile(){
@@ -2860,13 +2909,17 @@ async function saveScheduleToFile(){
       const writable = await handle.createWritable();
       await writable.write(json);
       await writable.close();
+      // Link this handle for auto-save
+      _bxsFileHandle = handle;
+      updateFileLinkedUI();
+      showAutoSaveStatus('✓ Saved');
       return;
     }catch(e){
       if(e.name==='AbortError') return; // user cancelled
       // fall through to download fallback
     }
   }
-  // Fallback: download via <a>
+  // Fallback: download via <a> (no auto-save possible without handle)
   const blob = new Blob([json], {type: BXS_MIME});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -2934,6 +2987,9 @@ function importBxsText(text, filename){
 
 document.getElementById('exp-save').addEventListener('click', saveScheduleToFile);
 document.getElementById('exp-open').addEventListener('click', openScheduleFromFile);
+
+// Wire up the auto-save status label in the toolbar
+_bxsAutoSaveEl = document.getElementById('bxs-autosave-lbl');
 
 document.getElementById('ppv-cancel').addEventListener('click', exitPrintPreview);
 
