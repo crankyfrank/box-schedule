@@ -2162,7 +2162,13 @@ document.getElementById('sp-pull').addEventListener('click',async()=>{
   // Build a lookup by event ID
   const gcalById={};
   gcalEvents.forEach(ev=>{if(ev.id) gcalById[ev.id]=ev;});
-  let moved=0, deleted=0, unchanged=0;
+  // Helper: extract local HH:MM from a Google Calendar dateTime string (handles both UTC and offset formats)
+  function gcalLocalTime(dtStr){
+    if(!dtStr) return null;
+    const d=new Date(dtStr);
+    return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  }
+  let moved=0, retimed=0, deleted=0, unchanged=0;
   const toRemoveFromTracking=[];
   for(const [key,eid] of Object.entries(S.eventIds)){
     const gcEv=gcalById[eid];
@@ -2185,35 +2191,50 @@ document.getElementById('sp-pull').addEventListener('click',async()=>{
     for(let di=0;di<totalDays;di++){
       if(localDateStr(dayDate(di))===gcDate){targetDi=di;break;}
     }
-    if(targetDi===-1||targetDi===currentDi){unchanged++;continue;}
-    // Date changed — move the magnet from currentDi to targetDi
-    applyDay(currentDi,'remove',magId);
-    applyDay(targetDi,'add',magId);
-    // Move any time info
+    const dateMoved=targetDi!==-1&&targetDi!==currentDi;
+    const destDi=dateMoved?targetDi:currentDi;
     const oldTk=currentDi+'-'+magId;
-    const newTk=targetDi+'-'+magId;
-    if(S.times[oldTk]){S.times[newTk]=S.times[oldTk];delete S.times[oldTk];}
-    // Update the key in eventIds
-    delete S.eventIds[key];
-    S.eventIds[newTk]=eid;
-    // Update time from Google Calendar if available
-    if(gcEv.start?.dateTime&&gcEv.end?.dateTime){
-      const st2=gcEv.start.dateTime.slice(11,16);
-      const en2=gcEv.end.dateTime.slice(11,16);
-      S.times[newTk]=S.times[newTk]||{};
-      S.times[newTk].start=st2;
-      S.times[newTk].end=en2;
+    const destTk=destDi+'-'+magId;
+
+    if(dateMoved){
+      // Move the magnet to the new date
+      applyDay(currentDi,'remove',magId);
+      applyDay(destDi,'add',magId);
+      if(S.times[oldTk]){S.times[destTk]=S.times[oldTk];delete S.times[oldTk];}
+      delete S.eventIds[key];
+      S.eventIds[destTk]=eid;
+      moved++;
     }
-    moved++;
+
+    // Always sync time if Google Calendar has a timed event
+    if(gcEv.start?.dateTime&&gcEv.end?.dateTime){
+      const newStart=gcalLocalTime(gcEv.start.dateTime);
+      const newEnd=gcalLocalTime(gcEv.end.dateTime);
+      const existing=S.times[destTk]||{};
+      if(existing.start!==newStart||existing.end!==newEnd){
+        S.times[destTk]={...existing,start:newStart,end:newEnd};
+        if(!dateMoved) retimed++;
+      }
+    } else if(gcEv.start?.date){
+      // Changed to all-day in Google Calendar — clear times
+      const existing=S.times[destTk];
+      if(existing?.start||existing?.end){
+        if(existing) {delete existing.start;delete existing.end;}
+        if(!dateMoved) retimed++;
+      }
+    }
+
+    if(!dateMoved&&!retimed) unchanged++;
   }
   // Remove tracking for deleted events (optionally leave magnets in place)
   toRemoveFromTracking.forEach(k=>{delete S.eventIds[k];});
   save(); rCal();
   const parts2=[];
-  if(moved) parts2.push(`${moved} event${moved>1?'s':''} moved`);
+  if(moved) parts2.push(`${moved} event${moved>1?'s':''} moved to new date`);
+  if(retimed) parts2.push(`${retimed} time${retimed>1?'s':''} updated`);
   if(deleted) parts2.push(`${deleted} removed from Google Calendar (still on your schedule)`);
-  if(!moved&&!deleted) parts2.push('Everything is already up to date');
-  st.style.color=moved||deleted?'#d97706':'#16a34a';
+  if(!moved&&!retimed&&!deleted) parts2.push('Everything is already up to date');
+  st.style.color=moved||retimed||deleted?'#d97706':'#16a34a';
   st.textContent='↓ '+(parts2.join(' · '));
 });
 
