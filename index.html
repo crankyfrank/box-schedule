@@ -237,6 +237,26 @@ textarea.ep-inp{resize:vertical;min-height:70px;font-family:inherit;line-height:
 #modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.28);backdrop-filter:blur(2px);z-index:1000;display:none;align-items:center;justify-content:center}
 #modal-overlay.show{display:flex}
 #modal-box{background:var(--surface);border-radius:var(--r-xl);padding:22px 22px 16px;width:300px;box-shadow:var(--shadow-lg);border:1px solid var(--border-light)}
+/* Template picker */
+#tpl-overlay{position:fixed;inset:0;background:rgba(0,0,0,.32);backdrop-filter:blur(3px);z-index:1001;display:none;align-items:center;justify-content:center}
+#tpl-overlay.show{display:flex}
+#tpl-box{background:var(--surface);border-radius:var(--r-xl);width:min(520px,92vw);max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg);border:1px solid var(--border-light);display:flex;flex-direction:column}
+#tpl-hdr{padding:22px 22px 14px;border-bottom:1px solid var(--border-light)}
+#tpl-title{font-size:16px;font-weight:700;color:var(--text-1);margin-bottom:4px}
+#tpl-sub{font-size:11px;color:var(--text-3)}
+#tpl-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:16px 20px}
+.tpl-card{border:1.5px solid var(--border);border-radius:var(--r-lg);padding:14px 14px 12px;cursor:pointer;transition:all .15s;background:var(--surface)}
+.tpl-card:hover{border-color:var(--accent);background:var(--accent-bg)}
+.tpl-card.selected{border-color:var(--accent);background:var(--accent-bg);box-shadow:0 0 0 2px var(--accent)}
+.tpl-icon{font-size:26px;margin-bottom:8px;line-height:1}
+.tpl-name{font-size:12px;font-weight:700;color:var(--text-1);margin-bottom:3px}
+.tpl-desc{font-size:10px;color:var(--text-3);line-height:1.4}
+.tpl-chips{display:flex;flex-wrap:wrap;gap:3px;margin-top:8px}
+.tpl-chip{font-size:9px;padding:2px 6px;border-radius:10px;color:#fff;font-weight:600;opacity:.9}
+.tpl-card{position:relative}
+.tpl-del{position:absolute;top:7px;right:7px;background:none;border:none;font-size:11px;color:var(--text-3);cursor:pointer;line-height:1;padding:2px 4px;border-radius:4px}
+.tpl-del:hover{background:var(--danger);color:#fff}
+.tpl-badge{position:absolute;top:7px;left:7px;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:var(--accent);color:#fff;padding:2px 5px;border-radius:4px}
 #modal-title{font-size:14px;font-weight:700;color:var(--text-1);margin-bottom:12px;letter-spacing:-0.2px}
 #modal-inp{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:13px;outline:none;background:var(--surface-2);margin-bottom:14px;font-family:inherit;transition:border-color .15s}
 #modal-inp:focus{border-color:var(--accent-border);background:var(--surface)}
@@ -384,6 +404,9 @@ body.print-preview .bar.soft{outline:none}
         <div style="padding:8px;border-top:1px solid #f0f0ea;display:flex;gap:6px">
           <button id="sch-new" style="flex:1;padding:7px;border:1px dashed #c0c0da;border-radius:7px;font-size:11px;cursor:pointer;background:#fafaf8;color:#555;white-space:nowrap">+ New schedule</button>
           <button id="sch-copy" style="flex:1;padding:7px;border:1px dashed #c0c0da;border-radius:7px;font-size:11px;cursor:pointer;background:#fafaf8;color:#555;white-space:nowrap">⊕ Copy this</button>
+        </div>
+        <div style="padding:0 8px 8px">
+          <button id="sch-save-tpl" style="width:100%;padding:7px;border:1px dashed #c0c0da;border-radius:7px;font-size:11px;cursor:pointer;background:#fafaf8;color:#555">⭐ Save labels as reusable template</button>
         </div>
       </div>
     </div>
@@ -543,6 +566,19 @@ body.print-preview .bar.soft{outline:none}
   </div>
 </div>
 
+<div id="tpl-overlay">
+  <div id="tpl-box">
+    <div id="tpl-hdr">
+      <div id="tpl-title">Choose a schedule type</div>
+      <div id="tpl-sub">You can customise everything after — these are just starting labels</div>
+    </div>
+    <div id="tpl-grid"></div>
+    <div class="modal-btns" style="padding:0 20px 18px">
+      <button class="modal-btn cancel" id="tpl-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div id="cpop">
   <div id="cpop-label"></div>
   <div id="cpop-swatches"></div>
@@ -628,6 +664,111 @@ const DG=[
     {id:'sound-mix', label:'Sound Mix',  color:'#8b5cf6'},
     {id:'vo-record', label:'VO Record',  color:'#a78bfa'},
   ]},
+];
+
+// ── Schedule templates ───────────────────────────────────────
+const TEMPLATES=[
+  {
+    id:'commercial',icon:'🎬',name:'Commercial Production',
+    desc:'Film & TV — pre-production through post',
+    folder:'Commercial Production',
+    groups:JSON.parse(JSON.stringify(DG)),
+  },
+  {
+    id:'holiday',icon:'✈️',name:'Holiday / Travel',
+    desc:'Flights, hotels, activities & exploring',
+    folder:'Holiday Plan',
+    groups:[
+      {id:'hol-plan',name:'Planning',open:true,color:'#3b82f6',magnets:[
+        {id:'htp-flights',  label:'Flights',       color:'#1d4ed8'},
+        {id:'htp-hotels',   label:'Hotels',         color:'#2563eb'},
+        {id:'htp-car',      label:'Car Hire',       color:'#3b82f6'},
+        {id:'htp-visas',    label:'Visas / Docs',   color:'#60a5fa'},
+        {id:'htp-insurance',label:'Insurance',      color:'#93c5fd'},
+      ]},
+      {id:'hol-exp',name:'Experiences',open:true,color:'#f97316',magnets:[
+        {id:'hte-sights',   label:'Sightseeing',   color:'#c2410c'},
+        {id:'hte-tours',    label:'Tours',          color:'#ea580c'},
+        {id:'hte-dining',   label:'Dining Out',     color:'#f97316'},
+        {id:'hte-shopping', label:'Shopping',       color:'#fb923c'},
+      ]},
+      {id:'hol-travel',name:'Transit',open:true,color:'#8b5cf6',magnets:[
+        {id:'htt-depart',   label:'Departure',      color:'#5b21b6'},
+        {id:'htt-arrive',   label:'Arrival',        color:'#7c3aed'},
+        {id:'htt-transit',  label:'Transit Day',    color:'#8b5cf6'},
+        {id:'htt-hol',      label:'Public Holiday', color:'#a78bfa'},
+      ]},
+    ],
+  },
+  {
+    id:'kids',icon:'⭐',name:'Kids Activities',
+    desc:'School, sport, social & health appointments',
+    folder:'Kids Calendar',
+    groups:[
+      {id:'kid-school',name:'School',open:true,color:'#3b82f6',magnets:[
+        {id:'ksc-day',     label:'School Day',      color:'#1d4ed8'},
+        {id:'ksc-excur',   label:'Excursion',       color:'#2563eb'},
+        {id:'ksc-exam',    label:'Exam / Test',     color:'#3b82f6'},
+        {id:'ksc-holday',  label:'School Holiday',  color:'#60a5fa'},
+        {id:'ksc-hol',     label:'Public Holiday',  color:'#93c5fd'},
+      ]},
+      {id:'kid-sport',name:'Sport & Activities',open:true,color:'#f97316',magnets:[
+        {id:'ksp-train',   label:'Training',        color:'#c2410c'},
+        {id:'ksp-game',    label:'Game / Meet',     color:'#ea580c'},
+        {id:'ksp-comp',    label:'Competition',     color:'#f97316'},
+        {id:'ksp-away',    label:'Away Trip',       color:'#fb923c'},
+      ]},
+      {id:'kid-social',name:'Social',open:true,color:'#22c55e',magnets:[
+        {id:'kso-party',   label:'Birthday Party',  color:'#14532d'},
+        {id:'kso-play',    label:'Playdate',        color:'#15803d'},
+        {id:'kso-event',   label:'Event',           color:'#22c55e'},
+        {id:'kso-camp',    label:'Camp / Sleepover',color:'#4ade80'},
+      ]},
+      {id:'kid-health',name:'Health',open:true,color:'#ec4899',magnets:[
+        {id:'khe-doc',     label:'Doctor',          color:'#9d174d'},
+        {id:'khe-dent',    label:'Dentist',         color:'#be185d'},
+        {id:'khe-appt',    label:'Appointment',     color:'#ec4899'},
+        {id:'khe-med',     label:'Medication',      color:'#f9a8d4'},
+      ]},
+    ],
+  },
+  {
+    id:'home',icon:'🏠',name:'Home Planner',
+    desc:'Household tasks, projects & family life',
+    folder:'Home',
+    groups:[
+      {id:'hom-maint',name:'Maintenance',open:true,color:'#f97316',magnets:[
+        {id:'hma-repair',  label:'Repairs',         color:'#c2410c'},
+        {id:'hma-clean',   label:'Cleaning',        color:'#ea580c'},
+        {id:'hma-garden',  label:'Garden',          color:'#f97316'},
+        {id:'hma-service', label:'Trades / Service',color:'#fb923c'},
+      ]},
+      {id:'hom-proj',name:'Projects',open:true,color:'#8b5cf6',magnets:[
+        {id:'hpr-reno',    label:'Renovation',      color:'#4c1d95'},
+        {id:'hpr-diy',     label:'DIY',             color:'#6d28d9'},
+        {id:'hpr-buy',     label:'Purchase',        color:'#7c3aed'},
+        {id:'hpr-plan',    label:'Planning',        color:'#a78bfa'},
+      ]},
+      {id:'hom-fam',name:'Family',open:true,color:'#22c55e',magnets:[
+        {id:'hfa-appt',    label:'Appointment',     color:'#14532d'},
+        {id:'hfa-event',   label:'Family Event',    color:'#15803d'},
+        {id:'hfa-guests',  label:'Visitors',        color:'#22c55e'},
+        {id:'hfa-hol',     label:'Public Holiday',  color:'#4ade80'},
+      ]},
+      {id:'hom-admin',name:'Admin',open:true,color:'#64748b',magnets:[
+        {id:'had-bills',   label:'Bills / Finance', color:'#1e293b'},
+        {id:'had-insure',  label:'Insurance',       color:'#334155'},
+        {id:'had-tax',     label:'Tax / Legal',     color:'#475569'},
+        {id:'had-misc',    label:'Miscellaneous',   color:'#94a3b8'},
+      ]},
+    ],
+  },
+  {
+    id:'blank',icon:'📋',name:'Blank',
+    desc:'Start from scratch — add your own sections',
+    folder:'My Schedule',
+    groups:[],
+  },
 ];
 
 // ── Schedule management ──────────────────────────────────────
@@ -2110,13 +2251,119 @@ function switchSchedule(id){
   rCal();
 }
 
+// ── Template picker ───────────────────────────────────────────
+function showTemplatePicker(){
+  return new Promise(resolve=>{
+    const overlay=document.getElementById('tpl-overlay');
+    const grid=document.getElementById('tpl-grid');
+    grid.innerHTML='';
+
+    function makeCard(tpl, onDelete){
+      const card=document.createElement('div');
+      card.className='tpl-card';
+      const chips=tpl.groups.slice(0,3).map(g=>
+        `<span class="tpl-chip" style="background:${g.color||'#888'}">${g.name}</span>`
+      ).join('');
+      card.innerHTML=`
+        ${onDelete?`<button class="tpl-del" title="Delete template">✕</button>`:''}
+        ${tpl.custom?`<span class="tpl-badge">Custom</span>`:''}
+        <div class="tpl-icon">${tpl.icon}</div>
+        <div class="tpl-name">${tpl.name}</div>
+        <div class="tpl-desc">${tpl.desc}</div>
+        <div class="tpl-chips">${chips}</div>`;
+      if(onDelete){
+        card.querySelector('.tpl-del').addEventListener('click',e=>{
+          e.stopPropagation();
+          if(!confirm(`Delete template "${tpl.name}"?`)) return;
+          onDelete(tpl.id);
+          card.remove();
+        });
+      }
+      card.addEventListener('click',()=>{
+        grid.querySelectorAll('.tpl-card').forEach(c=>c.classList.remove('selected'));
+        card.classList.add('selected');
+        setTimeout(()=>{overlay.classList.remove('show');resolve(tpl);},180);
+      });
+      return card;
+    }
+
+    // Built-in templates
+    TEMPLATES.forEach(tpl=>grid.appendChild(makeCard(tpl,null)));
+
+    // Custom saved templates
+    const customs=loadCustomTemplates();
+    if(customs.length){
+      const divider=document.createElement('div');
+      divider.style.cssText='grid-column:1/-1;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);padding:4px 0 2px;border-top:1px solid var(--border-light);margin-top:4px';
+      divider.textContent='Your saved templates';
+      grid.appendChild(divider);
+      customs.forEach(tpl=>{
+        grid.appendChild(makeCard(tpl,(id)=>{
+          const updated=loadCustomTemplates().filter(t=>t.id!==id);
+          saveCustomTemplates(updated);
+        }));
+      });
+    }
+
+    // "From existing schedule" card
+    if(schIndex.length>0){
+      const divider2=document.createElement('div');
+      divider2.style.cssText='grid-column:1/-1;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);padding:4px 0 2px;border-top:1px solid var(--border-light);margin-top:4px';
+      divider2.textContent='Or copy labels from an existing schedule';
+      grid.appendChild(divider2);
+      schIndex.forEach(sch=>{
+        if(sch.id===currentSchId) return; // skip current
+        const btn=document.createElement('div');
+        btn.className='tpl-card';
+        btn.style.gridColumn='1/-1';
+        btn.innerHTML=`<div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:20px">📋</span>
+          <div><div class="tpl-name">${sch.name}</div><div class="tpl-desc">Use the label structure from this schedule</div></div>
+        </div>`;
+        btn.addEventListener('click',()=>{
+          // Load that schedule's groups as the template
+          let data; try{data=JSON.parse(localStorage.getItem(schKey(sch.id)));}catch(e){}
+          const grps=JSON.parse(JSON.stringify(data?.groups||[]));
+          grid.querySelectorAll('.tpl-card').forEach(c=>c.classList.remove('selected'));
+          btn.classList.add('selected');
+          setTimeout(()=>{
+            overlay.classList.remove('show');
+            resolve({id:'from-sch',icon:'📋',name:sch.name,desc:'',folder:sch.name,groups:grps});
+          },180);
+        });
+        grid.appendChild(btn);
+      });
+    }
+
+    document.getElementById('tpl-cancel').onclick=()=>{overlay.classList.remove('show');resolve(null);};
+    overlay.onclick=e=>{if(e.target===overlay){overlay.classList.remove('show');resolve(null);}};
+    overlay.classList.add('show');
+  });
+}
+
 async function newSchedule(){
-  const name=await showPrompt('New schedule name','New Schedule'); if(!name) return;
+  const tpl=await showTemplatePicker(); if(!tpl) return;
+  const name=await showPrompt('Schedule name',tpl.name); if(!name) return;
   save();
   const id='sch_'+Date.now();
-  const blank=defaultState(name);
-  blank.startDate=prevMonday(); blank.weeks=S.weeks;
-  blank.syncCalId=''; blank.holCountry=S.holCountry; blank.holState=S.holState;
+  // Build state from template
+  const grps=JSON.parse(JSON.stringify(tpl.groups));
+  // Stamp unique IDs so copies don't collide
+  const ts=Date.now();
+  grps.forEach((g,gi)=>{
+    g.id=g.id+'-'+ts+gi;
+    g.magnets.forEach((m,mi)=>{m.id=m.id+'-'+ts+gi+mi;});
+  });
+  const allIds=[]; grps.forEach(g=>g.magnets.forEach(m=>{allIds.push(m.id);(m.subs||[]).forEach(s=>allIds.push(s.id));}));
+  const blank={
+    project:name, startDate:prevMonday(), weeks:S.weeks,
+    groups:grps,
+    folders:[{id:'fld-'+ts,name:tpl.folder,open:true,groupIds:grps.map(g=>g.id)}],
+    cells:{},times:{},eventIds:{},
+    activeMag:null,eraseMode:false,
+    syncCalId:'',syncInv:{},syncGlobal:'',syncSel:allIds,
+    holCountry:S.holCountry||'AU',holState:S.holState||'AU-VIC',
+  };
   schIndex.push({id,name,updatedAt:new Date().toISOString()});
   saveSchIndex();
   localStorage.setItem(schKey(id),JSON.stringify(blank));
@@ -2213,8 +2460,29 @@ document.getElementById('sch-btn').addEventListener('click',e=>{
   p.style.display=p.style.display==='none'?'block':'none';
   if(p.style.display==='block') rSchedulePicker();
 });
+// ── Custom template storage ───────────────────────────────────
+const CTPL_KEY='bxs5_custom_tpl';
+function loadCustomTemplates(){try{return JSON.parse(localStorage.getItem(CTPL_KEY))||[];}catch{return[];}}
+function saveCustomTemplates(arr){try{localStorage.setItem(CTPL_KEY,JSON.stringify(arr));}catch(e){}}
+
 document.getElementById('sch-new').addEventListener('click',()=>newSchedule());
 document.getElementById('sch-copy').addEventListener('click',()=>copySchedule());
+document.getElementById('sch-save-tpl').addEventListener('click',async()=>{
+  const name=await showPrompt('Template name',S.project); if(!name) return;
+  const customs=loadCustomTemplates();
+  const icons=['🗂','📌','📅','🎯','✨','🔖','💼','🌟'];
+  const icon=icons[customs.length%icons.length];
+  const grps=JSON.parse(JSON.stringify(S.groups));
+  // Strip instance data, keep structure only
+  grps.forEach(g=>g.magnets.forEach(m=>{delete m.subs;}));
+  customs.push({id:'ctpl-'+Date.now(),icon,name,desc:'Custom template',folder:name,groups:grps,custom:true});
+  saveCustomTemplates(customs);
+  document.getElementById('sch-panel').style.display='none';
+  // Brief confirmation
+  const btn=document.getElementById('sch-save-tpl');
+  const orig=btn.textContent; btn.textContent='✓ Saved!';
+  setTimeout(()=>btn.textContent=orig,1800);
+});
 document.addEventListener('pointerdown',e=>{
   if(!e.target.closest('#sch-btn')&&!e.target.closest('#sch-panel'))
     document.getElementById('sch-panel').style.display='none';
