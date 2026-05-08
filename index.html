@@ -589,9 +589,23 @@ async function gcalFetch(method,path,body){
   if(!res.ok) throw new Error(data?.error?.message||'HTTP '+res.status);
   return data;
 }
-const GCOL={'#22c55e':'2','#3b82f6':'9','#8b5cf6':'1','#f97316':'6','#06b6d4':'7',
-  '#0fb8a0':'7','#e8b84b':'5','#ec4899':'4','#0896b8':'7','#7c5cbf':'3',
-  '#3580c4':'9','#e07830':'6','#14b8a6':'7','#a855f7':'1'};
+// Map any hex colour to the nearest Google Calendar colorId using hue
+function gcalColorId(hex){
+  try{
+    const[h,s,l]=hexToHsl(hex);
+    if(s<15||l>85) return'9';          // grey/white → Blueberry fallback
+    if(h>=330||h<12) return'11';       // Tomato (red)
+    if(h<38)         return'6';        // Tangerine (orange)
+    if(h<65)         return'5';        // Banana (yellow)
+    if(h<100)        return'10';       // Sage (olive-green)
+    if(h<165)        return'2';        // Basil (green)
+    if(h<205)        return'7';        // Peacock (cyan)
+    if(h<250)        return'9';        // Blueberry (blue)
+    if(h<285)        return'3';        // Grape (violet)
+    if(h<315)        return'1';        // Lavender (purple)
+    return'4';                         // Flamingo (pink)
+  }catch{return'9';}
+}
 const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const DG=[
   {id:'pre',name:'Pre-Production',open:true,color:'#3b82f6',magnets:[
@@ -1590,7 +1604,7 @@ document.getElementById('ep-sync').addEventListener('click',async()=>{
   const dtNext=new Date(dt); dtNext.setDate(dtNext.getDate()+1);
   const dsNext=dtNext.toISOString().slice(0,10);
   const calId=tm.calId||S.syncCalId||'primary';
-  const colorId=GCOL[mag.color]||'9';
+  const colorId=gcalColorId(mag.color);
   const desc=[S.project,tm.notes].filter(Boolean).join('\n\n');
   const allDay=!tm.start||!tm.end;
   const evBody={
@@ -1791,7 +1805,7 @@ function buildEvents(){
       const global=S.syncGlobal?S.syncGlobal.split(',').map(x=>x.trim()).filter(Boolean):[];
       const perL=S.syncInv[mag.id]?S.syncInv[mag.id].split(',').map(x=>x.trim()).filter(Boolean):[];
       const inv=[...global,...perL];
-      const colorId=GCOL[mag.color]||'9';
+      const colorId=gcalColorId(mag.color);
       const desc=[S.project, tm?.notes].filter(Boolean).join('\n\n');
       const loc=tm?.location||undefined;
       const meet=tm?.meet||false;
@@ -1827,7 +1841,17 @@ document.getElementById('sp-push').addEventListener('click',async()=>{
         conferenceData:ev.meet?{createRequest:{requestId:ev.key+'-'+Date.now(),conferenceSolutionKey:{type:'hangoutsMeet'}}}:undefined,
       };
       if(ex){
-        await gcalFetch('PATCH',calPath+'/'+encodeURIComponent(ex)+(ev.inv.length?'?sendUpdates=all':''),evBody);
+        try{
+          await gcalFetch('PATCH',calPath+'/'+encodeURIComponent(ex)+(ev.inv.length?'?sendUpdates=all':''),evBody);
+        }catch(patchErr){
+          // Stale ID (event deleted in Google Calendar) — clear it and create fresh
+          if(/404|not found/i.test(patchErr.message)){
+            delete S.eventIds[ev.key];
+            const qs=ev.inv.length?'?sendUpdates=all':ev.meet?'?conferenceDataVersion=1':'';
+            const res=await gcalFetch('POST',calPath+qs,evBody);
+            if(res?.id) S.eventIds[ev.key]=res.id;
+          } else { throw patchErr; }
+        }
       } else {
         const qs=ev.inv.length?'?sendUpdates=all':ev.meet?'?conferenceDataVersion=1':'';
         const res=await gcalFetch('POST',calPath+qs,evBody);
@@ -2053,6 +2077,16 @@ function loadScheduleData(id){
   const nm=schIndex.find(s=>s.id===id)?.name;
   if(!data||!Array.isArray(data.groups)||!data.startDate) data=defaultState(nm);
   if(!Array.isArray(data.syncSel)) data.syncSel=[];
+  // Ensure group colors are present
+  (data.groups||[]).forEach(g=>{if(!g.color)g.color=deriveGroupBase(g);});
+  // Default: all labels selected for sync until user explicitly deselects
+  if(data.syncSel.length===0){
+    const ids=[];
+    (data.groups||[]).forEach(g=>{
+      g.magnets.forEach(m=>{ids.push(m.id);(m.subs||[]).forEach(s=>ids.push(s.id));});
+    });
+    data.syncSel=ids;
+  }
   if(!Array.isArray(data.folders)||data.folders.length===0){
     data.folders=[{id:'fld-'+Date.now(),name:'Commercial Production',open:true,groupIds:(data.groups||[]).map(g=>g.id)}];
   }
@@ -2332,7 +2366,6 @@ window.addEventListener('afterprint', exitPrintPreview);
 })();
 
 // ── Init ─────────────────────────────────────────────────────
-if(S.syncSel.length===0) S.syncSel=allMags().map(m=>m.id);
 document.getElementById('proj-name').textContent=S.project;
 rSchedulePicker();
 rSidebar(); rCal();
