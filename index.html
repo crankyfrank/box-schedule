@@ -440,11 +440,19 @@ body.print-preview .bar.soft{outline:none}
     </div>
     <div style="position:relative;margin-left:8px">
       <button class="mdbtn" id="export-btn" style="background:#fafaf8">↓ Export</button>
-      <div id="export-menu" style="display:none;position:absolute;right:0;top:32px;background:#fff;border:1px solid #e0e0da;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:300;min-width:190px;overflow:hidden">
-        <div class="exp-item" id="exp-csv" style="padding:11px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f0f0ea">
+      <div id="export-menu" style="display:none;position:absolute;right:0;top:32px;background:#fff;border:1px solid #e0e0da;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:300;min-width:210px;overflow:hidden">
+        <div style="padding:8px 14px 4px;font-size:9px;font-weight:700;color:#bbb;letter-spacing:.5px;text-transform:uppercase">Save &amp; Open</div>
+        <div class="exp-item" id="exp-save" style="padding:10px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f0f0ea">
+          <span style="font-size:15px">💾</span><div><div style="font-weight:600;color:#111">Save to file…</div><div style="font-size:10px;color:#aaa">Save as .bxs file to any folder</div></div>
+        </div>
+        <div class="exp-item" id="exp-open" style="padding:10px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f0f0ea">
+          <span style="font-size:15px">📂</span><div><div style="font-weight:600;color:#111">Open file…</div><div style="font-size:10px;color:#aaa">Load a .bxs schedule file</div></div>
+        </div>
+        <div style="padding:8px 14px 4px;font-size:9px;font-weight:700;color:#bbb;letter-spacing:.5px;text-transform:uppercase">Export</div>
+        <div class="exp-item" id="exp-csv" style="padding:10px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f0f0ea">
           <span style="font-size:15px">📊</span><div><div style="font-weight:600;color:#111">Export to CSV</div><div style="font-size:10px;color:#aaa">Open in Google Sheets or Excel</div></div>
         </div>
-        <div class="exp-item" id="exp-pdf" style="padding:11px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px">
+        <div class="exp-item" id="exp-pdf" style="padding:10px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px">
           <span style="font-size:15px">🖨</span><div><div style="font-weight:600;color:#111">Print / Save as PDF</div><div style="font-size:10px;color:#aaa">Use browser print → Save as PDF</div></div>
         </div>
       </div>
@@ -495,6 +503,15 @@ body.print-preview .bar.soft{outline:none}
             <div class="ep-slider"></div>
           </label>
         </div>
+      </div>
+      <!-- Meet link (populated after sync) -->
+      <div class="ep-row" id="ep-meetlink-row" style="display:none">
+        <div class="ep-row-lbl">Meet link</div>
+        <a id="ep-meetlink" href="#" target="_blank" rel="noopener"
+           style="font-size:11px;color:var(--accent);word-break:break-all;text-decoration:none;display:flex;align-items:center;gap:5px;padding:4px 0">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex-shrink:0"><path d="M15.5 12c0 1.93-1.57 3.5-3.5 3.5S8.5 13.93 8.5 12s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5z" fill="#00832d"/><path d="M21.5 7.5l-4 4 4 4V7.5z" fill="#0066da"/><path d="M2 7.5h13v9H2V7.5z" fill="#188038"/></svg>
+          <span id="ep-meetlink-text"></span>
+        </a>
       </div>
       <!-- Description -->
       <div class="ep-row">
@@ -1697,6 +1714,18 @@ function openEventPanel(di,magId){
   document.getElementById('ep-loc').value=tm.location||'';
   document.getElementById('ep-notes').value=tm.notes||'';
   document.getElementById('ep-meet').checked=tm.meet||false;
+  // Meet link — shown if one has been returned from Google Calendar after sync
+  const meetLink=tm.meetLink||'';
+  const meetLinkRow=document.getElementById('ep-meetlink-row');
+  const meetLinkEl=document.getElementById('ep-meetlink');
+  const meetLinkText=document.getElementById('ep-meetlink-text');
+  if(meetLink){
+    meetLinkRow.style.display='';
+    meetLinkEl.href=meetLink;
+    meetLinkText.textContent=meetLink.replace('https://','');
+  } else {
+    meetLinkRow.style.display='none';
+  }
   updateLockUI(tm.locked||false);
   populateEpCalSel();
 }
@@ -1838,9 +1867,11 @@ weeksInp.value=S.weeks;
 weeksInp.addEventListener('change',e=>{S.weeks=Math.max(1,Math.min(52,parseInt(e.target.value)||13));save();rCal();});
 // Add Category button is rendered inside rSidebar()
 document.addEventListener('keydown',e=>{
-  if(e.target.isContentEditable||e.target.tagName==='INPUT') return;
+  if(e.target.isContentEditable||e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
   if(e.key==='Escape'){S.activeMag=null;selBar=null;document.getElementById('event-panel').classList.remove('open');save();rSidebar();}
   if(e.key.toLowerCase()==='e'){S.eraseMode=!S.eraseMode;save();updateModeUI();}
+  // Cmd/Ctrl+S → save to file
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveScheduleToFile();}
 });
 
 // ── Sync panel ───────────────────────────────────────────────
@@ -2085,9 +2116,15 @@ document.getElementById('sp-push').addEventListener('click',async()=>{
         attendees:ev.inv.length?ev.inv.map(e=>({email:e})):undefined,
         conferenceData:ev.meet?{createRequest:{requestId:ev.key+'-'+Date.now(),conferenceSolutionKey:{type:'hangoutsMeet'}}}:undefined,
       };
+      // Helper to capture Meet link from a Google Calendar response
+      function captureMeetLink(res,key){
+        const link=res?.conferenceData?.hangoutLink||res?.hangoutLink||null;
+        if(link){S.times[key]=S.times[key]||{};S.times[key].meetLink=link;}
+      }
       if(ex){
         try{
-          await gcalFetch('PATCH',calPath+'/'+encodeURIComponent(ex)+(ev.inv.length?'?sendUpdates=all':''),evBody);
+          const res=await gcalFetch('PATCH',calPath+'/'+encodeURIComponent(ex)+(ev.inv.length?'?sendUpdates=all':''),evBody);
+          captureMeetLink(res,ev.key);
         }catch(patchErr){
           // Stale ID (event deleted in Google Calendar) — clear it and create fresh
           if(/404|not found/i.test(patchErr.message)){
@@ -2095,12 +2132,14 @@ document.getElementById('sp-push').addEventListener('click',async()=>{
             const qs=ev.inv.length?'?sendUpdates=all':ev.meet?'?conferenceDataVersion=1':'';
             const res=await gcalFetch('POST',calPath+qs,evBody);
             if(res?.id) S.eventIds[ev.key]=res.id;
+            captureMeetLink(res,ev.key);
           } else { throw patchErr; }
         }
       } else {
         const qs=ev.inv.length?'?sendUpdates=all':ev.meet?'?conferenceDataVersion=1':'';
         const res=await gcalFetch('POST',calPath+qs,evBody);
         if(res?.id) S.eventIds[ev.key]=res.id;
+        captureMeetLink(res,ev.key);
       }
       ok++;
       st.textContent=`Syncing… ${ok}/${evts.length}`;
@@ -2206,22 +2245,31 @@ document.getElementById('sp-pull').addEventListener('click',async()=>{
       moved++;
     }
 
-    // Always sync time if Google Calendar has a timed event
+    // Always sync time + Meet link from Google Calendar
+    const gcMeetLink=gcEv.conferenceData?.hangoutLink||gcEv.hangoutLink||null;
     if(gcEv.start?.dateTime&&gcEv.end?.dateTime){
       const newStart=gcalLocalTime(gcEv.start.dateTime);
       const newEnd=gcalLocalTime(gcEv.end.dateTime);
       const existing=S.times[destTk]||{};
-      if(existing.start!==newStart||existing.end!==newEnd){
+      const timeChanged=existing.start!==newStart||existing.end!==newEnd;
+      const linkChanged=gcMeetLink&&existing.meetLink!==gcMeetLink;
+      if(timeChanged||linkChanged){
         S.times[destTk]={...existing,start:newStart,end:newEnd};
+        if(gcMeetLink) S.times[destTk].meetLink=gcMeetLink;
         if(!dateMoved) retimed++;
       }
     } else if(gcEv.start?.date){
-      // Changed to all-day in Google Calendar — clear times
+      // Changed to all-day in Google Calendar — clear times but keep Meet link
       const existing=S.times[destTk];
       if(existing?.start||existing?.end){
-        if(existing) {delete existing.start;delete existing.end;}
+        if(existing){delete existing.start;delete existing.end;}
         if(!dateMoved) retimed++;
       }
+      if(gcMeetLink&&existing){existing.meetLink=gcMeetLink;}
+    } else if(gcMeetLink){
+      // No time change but we got a Meet link
+      S.times[destTk]=S.times[destTk]||{};
+      if(S.times[destTk].meetLink!==gcMeetLink){S.times[destTk].meetLink=gcMeetLink;if(!dateMoved)retimed++;}
     }
 
     if(!dateMoved&&!retimed) unchanged++;
@@ -2781,6 +2829,111 @@ document.getElementById('exp-pdf').addEventListener('click', () => {
   exportMenu.style.display = 'none';
   enterPrintPreview();
 });
+
+// ── Save / Open .bxs files ────────────────────────────────────────────────
+// .bxs is just JSON with a version header — rename-able, shareable, version-controlled
+
+const BXS_VERSION = 1;
+const BXS_EXT = '.bxs';
+const BXS_MIME = 'application/json';
+
+function scheduleToBxs(){
+  return JSON.stringify({
+    _bxs: BXS_VERSION,
+    _app: 'Box Schedule',
+    _saved: new Date().toISOString(),
+    schedule: S,
+  }, null, 2);
+}
+
+async function saveScheduleToFile(){
+  exportMenu.style.display = 'none';
+  const safeName = (S.project||'schedule').replace(/[^a-z0-9_\- ]/gi,'_').trim() || 'schedule';
+  const json = scheduleToBxs();
+  // Try File System Access API first (Chrome/Edge) — lets user pick folder once
+  if(window.showSaveFilePicker){
+    try{
+      const handle = await window.showSaveFilePicker({
+        suggestedName: safeName + BXS_EXT,
+        types: [{description:'Box Schedule file', accept:{'application/json':[BXS_EXT,'.json']}}],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(json);
+      await writable.close();
+      return;
+    }catch(e){
+      if(e.name==='AbortError') return; // user cancelled
+      // fall through to download fallback
+    }
+  }
+  // Fallback: download via <a>
+  const blob = new Blob([json], {type: BXS_MIME});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = safeName + BXS_EXT;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{document.body.removeChild(a); URL.revokeObjectURL(url);}, 1000);
+}
+
+async function openScheduleFromFile(){
+  exportMenu.style.display = 'none';
+  // Try File System Access API first
+  if(window.showOpenFilePicker){
+    try{
+      const [handle] = await window.showOpenFilePicker({
+        types: [{description:'Box Schedule file', accept:{'application/json':[BXS_EXT,'.json']}}],
+        multiple: false,
+      });
+      const file = await handle.getFile();
+      const text = await file.text();
+      importBxsText(text, file.name);
+      return;
+    }catch(e){
+      if(e.name==='AbortError') return;
+    }
+  }
+  // Fallback: hidden file input
+  const inp = document.createElement('input');
+  inp.type='file'; inp.accept=BXS_EXT+',.json';
+  inp.style.display='none';
+  document.body.appendChild(inp);
+  inp.addEventListener('change', async ()=>{
+    const file = inp.files[0]; if(!file) return;
+    const text = await file.text();
+    importBxsText(text, file.name);
+    document.body.removeChild(inp);
+  });
+  inp.click();
+}
+
+function importBxsText(text, filename){
+  let parsed;
+  try{ parsed = JSON.parse(text); }
+  catch(e){ alert('Could not read file — it may be corrupted or not a Box Schedule file.'); return; }
+  const data = parsed.schedule || parsed; // support both wrapped and bare format
+  if(!data.groups || !data.project){
+    alert('This doesn\'t look like a Box Schedule file.');
+    return;
+  }
+  // Register as a new schedule (or overwrite current — ask)
+  const name = data.project || filename.replace(/\.bxs$/i,'');
+  const id = 'sch-' + Date.now();
+  loadSchIndex();
+  schIndex.push({id, name, updatedAt: new Date().toISOString()});
+  saveSchIndex();
+  try{ localStorage.setItem(schKey(id), JSON.stringify(data)); }catch(e){ alert('Could not save: '+e.message); return; }
+  switchSchedule(id);
+  document.getElementById('sch-panel').style.display='none';
+  // Brief confirmation toast
+  const toast = document.createElement('div');
+  toast.textContent = `✓ Opened "${name}"`;
+  toast.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1c1917;color:#fff;padding:10px 20px;border-radius:8px;font-size:12px;font-weight:600;z-index:9999;pointer-events:none;opacity:1;transition:opacity .4s';
+  document.body.appendChild(toast);
+  setTimeout(()=>{ toast.style.opacity='0'; setTimeout(()=>document.body.removeChild(toast),500); }, 2000);
+}
+
+document.getElementById('exp-save').addEventListener('click', saveScheduleToFile);
+document.getElementById('exp-open').addEventListener('click', openScheduleFromFile);
 
 document.getElementById('ppv-cancel').addEventListener('click', exitPrintPreview);
 
