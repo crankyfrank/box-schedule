@@ -789,7 +789,8 @@ function prevMonday(){
   const day=d.getDay(); // 0=Sun,1=Mon,...,6=Sat
   const diff=day===0?6:day-1;
   d.setDate(d.getDate()-diff);
-  return d.toISOString().slice(0,10);
+  // Use local date parts to avoid UTC offset shifting the date
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 
 function defaultState(name){
@@ -859,6 +860,8 @@ function getParentMag(subId){
 }
 function startDt(){return new Date(S.startDate+'T00:00:00');}
 function dayDate(di){const d=new Date(startDt());d.setDate(d.getDate()+di);return d;}
+// Use LOCAL date parts to avoid UTC offset shifting the date (critical for non-UTC timezones)
+function localDateStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function totalDays(){return S.weeks*7;}
 
 function applyDay(di,mode,magId){
@@ -1778,9 +1781,9 @@ document.getElementById('ep-sync').addEventListener('click',async()=>{
   const tk=getTk(); if(!tk) return;
   const mag=getMag(selBar.magId); if(!mag) return;
   const tm=S.times[tk]||{};
-  const dt=dayDate(selBar.di); const ds=dt.toISOString().slice(0,10);
+  const dt=dayDate(selBar.di); const ds=localDateStr(dt);
   const dtNext=new Date(dt); dtNext.setDate(dtNext.getDate()+1);
-  const dsNext=dtNext.toISOString().slice(0,10);
+  const dsNext=localDateStr(dtNext);
   const calId=tm.calId||S.syncCalId||'primary';
   const colorId=gcalColorId(mag.color);
   const desc=[S.project,tm.notes].filter(Boolean).join('\n\n');
@@ -1977,15 +1980,22 @@ document.getElementById('sp-refresh-cals')?.addEventListener('click',async()=>{
 
 function buildEvents(){
   const evts=[];
-  const mags=allMags().filter(m=>S.syncSel.includes(m.id));
+  // Collect all syncable magnets: regular magnets in syncSel + any group-label IDs found in cells
+  const regularMags=allMags().filter(m=>S.syncSel.includes(m.id));
+  // Also gather any group-label (grplbl-*) IDs that appear in cells — these are draggable group chips
+  const grplblIdsInCells=new Set();
+  for(let di=0;di<totalDays();di++) (S.cells[di]||[]).filter(id=>id.startsWith('grplbl-')).forEach(id=>grplblIdsInCells.add(id));
+  const grplblMags=[...grplblIdsInCells].map(id=>getMag(id)).filter(Boolean);
+  const mags=[...regularMags,...grplblMags];
+
   for(const mag of mags){
     for(let di=0;di<totalDays();di++){
       if(!(S.cells[di]||[]).includes(mag.id)) continue;
       const key=di+'-'+mag.id; const tm=S.times[key];
-      const dt=dayDate(di); const ds=dt.toISOString().slice(0,10);
+      const dt=dayDate(di); const ds=localDateStr(dt);
       // Next day for all-day end (Google Calendar convention)
       const dtNext=new Date(dt); dtNext.setDate(dtNext.getDate()+1);
-      const dsNext=dtNext.toISOString().slice(0,10);
+      const dsNext=localDateStr(dtNext);
       const global=S.syncGlobal?S.syncGlobal.split(',').map(x=>x.trim()).filter(Boolean):[];
       const perL=S.syncInv[mag.id]?S.syncInv[mag.id].split(',').map(x=>x.trim()).filter(Boolean):[];
       const inv=[...global,...perL];
@@ -1993,10 +2003,9 @@ function buildEvents(){
       const desc=[S.project, tm?.notes].filter(Boolean).join('\n\n');
       const loc=tm?.location||undefined;
       const meet=tm?.meet||false;
-      // All-day: MCP requires full ISO timestamps at midnight UTC
       evts.push(tm?.start&&tm?.end
         ? {key,summary:mag.label,startTime:`${ds}T${tm.start}:00`,endTime:`${ds}T${tm.end}:00`,allDay:false,inv,colorId,desc,loc,meet}
-        : {key,summary:mag.label,startTime:`${ds}T00:00:00Z`,endTime:`${dsNext}T00:00:00Z`,allDay:true,inv,colorId,desc,loc,meet});
+        : {key,summary:mag.label,startTime:ds,endTime:dsNext,allDay:true,inv,colorId,desc,loc,meet});
     }
   }
   return evts;
@@ -2045,10 +2054,22 @@ document.getElementById('sp-push').addEventListener('click',async()=>{
   }
   const evts=buildEvents();
   if(evts.length===0){
-    st.textContent='Nothing to sync — add magnets to the calendar first, or check labels are ticked below.';
+    // Show a diagnostic: what's in cells vs syncSel
+    const allCellIds=new Set(Object.values(S.cells).flat());
+    const allMagIds=new Set(allMags().map(m=>m.id));
+    const notInSyncSel=[...allCellIds].filter(id=>!id.startsWith('grplbl-')&&allMagIds.has(id)&&!S.syncSel.includes(id));
+    const orphaned=[...allCellIds].filter(id=>!id.startsWith('grplbl-')&&!allMagIds.has(id));
+    let hint='Nothing to sync — add magnets to the calendar first, or check labels are ticked below.';
+    if(notInSyncSel.length) hint=`${notInSyncSel.length} label(s) on the calendar aren't ticked in "Labels to sync" below.`;
+    if(orphaned.length) hint=`Found ${orphaned.length} orphaned cell entries (labels that no longer exist). Try re-adding them to the calendar.`;
+    st.textContent=hint;
     return;
   }
-  st.textContent=`Syncing ${evts.length} event${evts.length>1?'s':''}…`;
+  // Show a summary of what we're about to sync
+  const labelCounts={};
+  evts.forEach(ev=>{labelCounts[ev.summary]=(labelCounts[ev.summary]||0)+1;});
+  const summary=Object.entries(labelCounts).map(([k,v])=>v>1?`${k} ×${v}`:k).join(', ');
+  st.textContent=`Syncing ${evts.length} event${evts.length>1?'s':''}: ${summary}…`;
   let ok=0, fail=0, lastErr='';
   for(const ev of evts){
     try{
@@ -2162,7 +2183,7 @@ document.getElementById('sp-pull').addEventListener('click',async()=>{
     // Find the di that matches gcDate
     let targetDi=-1;
     for(let di=0;di<totalDays;di++){
-      if(dayDate(di).toISOString().slice(0,10)===gcDate){targetDi=di;break;}
+      if(localDateStr(dayDate(di))===gcDate){targetDi=di;break;}
     }
     if(targetDi===-1||targetDi===currentDi){unchanged++;continue;}
     // Date changed — move the magnet from currentDi to targetDi
