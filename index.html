@@ -137,7 +137,6 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg)
 .mdbtn:hover{background:var(--surface-3);border-color:var(--text-3);color:var(--text-1)}
 .mdbtn.on{background:var(--text-1);color:#fff;border-color:var(--text-1)}
 .mdbtn.on:hover{background:#333}
-.tb-hint{font-size:10px;color:var(--text-3);margin-left:auto;white-space:nowrap;font-weight:500}
 #sch-btn{background:var(--accent-bg)!important;border-color:var(--accent-border)!important;color:var(--accent)!important;font-weight:600!important}
 #sch-btn:hover{background:#dbeafe!important}
 #sch-panel,#holiday-menu,#export-menu{background:var(--surface)!important;border:1px solid var(--border)!important;border-radius:var(--r-lg)!important;box-shadow:var(--shadow-lg)!important}
@@ -208,8 +207,18 @@ textarea.ep-inp{resize:vertical;min-height:70px;font-family:inherit;line-height:
 .ep-status{font-size:10px;padding:4px 0 0;min-height:14px;font-weight:500}
 
 /* ── SYNC PANEL ── */
-#sync-panel{position:fixed;top:0;right:-340px;bottom:0;width:320px;background:var(--surface);border-left:1px solid var(--border);z-index:200;display:flex;flex-direction:column;transition:right .22s cubic-bezier(.25,.46,.45,.94);box-shadow:var(--shadow-lg)}
-#sync-panel.open{right:0}
+#sync-panel,#lib-panel{position:fixed;top:0;right:-340px;bottom:0;width:320px;background:var(--surface);border-left:1px solid var(--border);z-index:200;display:flex;flex-direction:column;transition:right .22s cubic-bezier(.25,.46,.45,.94);box-shadow:var(--shadow-lg)}
+#sync-panel.open,#lib-panel.open{right:0}
+#lib-scroll{flex:1;overflow-y:auto;min-height:0}
+.lib-set{border:1.5px solid var(--border);border-radius:var(--r-md);margin-bottom:8px;overflow:hidden}
+.lib-set-hdr{display:flex;align-items:center;padding:9px 10px;gap:8px;background:var(--surface-2);cursor:default}
+.lib-set-name{font-size:12px;font-weight:600;color:var(--text-1);flex:1}
+.lib-set-meta{font-size:10px;color:var(--text-3)}
+.lib-set-actions{display:flex;gap:5px}
+.lib-set-btn{font-size:11px;padding:3px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);cursor:pointer;background:var(--surface);font-family:inherit;color:var(--text-2);transition:all .1s;white-space:nowrap}
+.lib-set-btn:hover{background:var(--surface-3);color:var(--text-1)}
+.lib-set-btn.danger:hover{background:#fef2f2;border-color:#fca5a5;color:var(--danger)}
+.lib-set-grps{padding:6px 10px 8px;font-size:10px;color:var(--text-3);line-height:1.6}
 #sp-scroll{flex:1;overflow-y:auto;min-height:0}
 #sp-footer{padding:12px 16px;border-top:1px solid var(--border-light);background:var(--surface);flex-shrink:0}
 .sphdr{padding:14px 16px;border-bottom:1px solid var(--border-light);display:flex;align-items:center}
@@ -343,7 +352,7 @@ body.print-preview .bar.soft{outline:none}
 @media print{
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   body{display:block;height:auto;overflow:visible;background:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
-  #print-preview-bar,#sidebar,#toolbar,#event-panel,#sync-panel,#ghost,#export-menu,#sch-panel{display:none!important}
+  #print-preview-bar,#sidebar,#toolbar,#event-panel,#sync-panel,#lib-panel,#ghost,#export-menu,#sch-panel{display:none!important}
   #main{display:block;overflow:visible;padding:0}
   #cal-wrap{overflow:visible;padding:0 4px;background:#fff;max-width:none;margin:0;box-shadow:none;border-radius:0}
   .dcell{height:58px;break-inside:avoid;border-color:#ddd}
@@ -415,11 +424,12 @@ body.print-preview .bar.soft{outline:none}
         </div>
       </div>
     </div>
-    <div class="tb-sep"></div>
+    <div style="flex:1"></div>
+    <div style="display:flex;align-items:center;gap:8px">
     <span class="tlabel">From</span><input type="date" id="date-input">
     <span class="tlabel">Weeks</span><input type="number" id="weeks-input" value="13" min="1" max="52">
     <div class="tb-sep"></div>
-    <span class="tb-hint">Drag magnets · Alt+drag bar to copy · 🗑 to erase</span>
+    <button id="lib-btn" class="mdbtn" style="background:#fafaf8">📚 Library</button>
     <div style="position:relative">
       <button class="mdbtn" id="holiday-btn" style="background:#fafaf8">🗓 Holidays</button>
       <div id="holiday-menu" style="display:none;position:absolute;right:0;top:32px;background:#fff;border:1px solid #e0e0da;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:300;width:220px;padding:12px 14px">
@@ -457,6 +467,7 @@ body.print-preview .bar.soft{outline:none}
           <span style="font-size:15px">🖨</span><div><div style="font-weight:600;color:#111">Print / Save as PDF</div><div style="font-size:10px;color:#aaa">Use browser print → Save as PDF</div></div>
         </div>
       </div>
+    </div>
     </div>
   </div>
   <div id="cal-wrap"><div id="print-header"><span id="print-header-title"></span><span id="print-header-meta"></span></div><div id="cal"></div></div>
@@ -575,6 +586,31 @@ body.print-preview .bar.soft{outline:none}
     <button class="spbtn" id="sp-push" style="margin:0;width:100%">☁ Push to Google Calendar</button>
     <button class="spbtn" id="sp-pull" style="margin:6px 0 0;width:100%;background:var(--surface-2);color:var(--text-2);border:1.5px solid var(--border)">↓ Pull changes from Google Calendar</button>
     <div class="spstatus" id="sp-status" style="padding:6px 0 0"></div>
+  </div>
+</div>
+
+<!-- ── Magnet Library Panel ── -->
+<div id="lib-panel">
+  <div class="sphdr"><h2>📚 Magnet Library</h2><span class="spclose" id="lib-close">✕</span></div>
+  <div id="lib-scroll">
+    <div class="spsec" style="padding-bottom:0">
+      <label>Save current magnets</label>
+      <div style="font-size:10px;color:#aaa;margin-bottom:8px">Save your groups &amp; labels as a named set you can load into any schedule</div>
+      <div style="display:flex;gap:6px">
+        <input id="lib-save-name" class="spinp" placeholder="Set name (e.g. Film Crew, Acro)…" style="flex:1">
+        <button id="lib-save-btn" class="spbtn" style="margin:0;white-space:nowrap;padding:0 12px">Save</button>
+      </div>
+      <div style="margin-top:8px;font-size:10px;color:#aaa">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:10px;font-weight:400">
+          <input type="checkbox" id="lib-save-all" checked style="accent-color:var(--accent)"> Save all groups
+        </label>
+      </div>
+    </div>
+    <div class="spsec" style="padding-top:10px">
+      <label>Saved sets</label>
+      <div id="lib-list"></div>
+      <div id="lib-empty" style="font-size:11px;color:#bbb;text-align:center;padding:20px 0;display:none">No saved sets yet — save your first one above</div>
+    </div>
   </div>
 </div>
 
@@ -2999,6 +3035,127 @@ document.getElementById('ppv-print').addEventListener('click', () => {
 });
 
 window.addEventListener('afterprint', exitPrintPreview);
+
+
+// ── Magnet Library ────────────────────────────────────────────────────────
+const MAGLIB_KEY = 'bxs5_maglib';
+
+function loadMagLib(){ try{ return JSON.parse(localStorage.getItem(MAGLIB_KEY))||[]; }catch{ return []; } }
+function saveMagLib(arr){ try{ localStorage.setItem(MAGLIB_KEY, JSON.stringify(arr)); }catch(e){} }
+
+// Deep-copy groups with fresh IDs so they don't clash when loaded into a schedule
+function cloneGroupsFreshIds(groups){
+  return groups.map(g=>{
+    const gid='grp-'+Date.now()+'-'+Math.random().toString(36).slice(2,6);
+    return {
+      ...g, id:gid,
+      magnets:(g.magnets||[]).map(m=>{
+        const mid='m-'+Date.now()+'-'+Math.random().toString(36).slice(2,6);
+        return {
+          ...m, id:mid,
+          subs:(m.subs||[]).map(s=>({...s, id:'m-'+Date.now()+'-'+Math.random().toString(36).slice(2,6)}))
+        };
+      })
+    };
+  });
+}
+
+function renderLibPanel(){
+  const sets = loadMagLib();
+  const list = document.getElementById('lib-list');
+  const empty = document.getElementById('lib-empty');
+  list.innerHTML = '';
+  if(sets.length === 0){ empty.style.display='block'; return; }
+  empty.style.display = 'none';
+  sets.forEach((set, idx)=>{
+    const el = document.createElement('div');
+    el.className = 'lib-set';
+    const groupSummary = (set.groups||[]).map(g=>{
+      const count = (g.magnets||[]).length;
+      const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${g.color||'#888'};margin-right:3px;vertical-align:middle"></span>`;
+      return dot + g.name + (count ? ` (${count})` : '');
+    }).join(' &nbsp;·&nbsp; ');
+    el.innerHTML = `
+      <div class="lib-set-hdr">
+        <span class="lib-set-name">${set.name}</span>
+        <span class="lib-set-meta">${(set.groups||[]).length} group${set.groups.length!==1?'s':''}</span>
+        <div class="lib-set-actions">
+          <button class="lib-set-btn" data-action="add" data-idx="${idx}">+ Add to schedule</button>
+          <button class="lib-set-btn danger" data-action="del" data-idx="${idx}">✕</button>
+        </div>
+      </div>
+      <div class="lib-set-grps">${groupSummary||'(no groups)'}</div>`;
+    el.querySelector('[data-action="add"]').addEventListener('click', ()=>libAddToSchedule(idx));
+    el.querySelector('[data-action="del"]').addEventListener('click', ()=>libDelete(idx));
+    list.appendChild(el);
+  });
+}
+
+function libSaveCurrent(){
+  const nameInp = document.getElementById('lib-save-name');
+  const name = nameInp.value.trim();
+  if(!name){ nameInp.focus(); return; }
+  const saveAll = document.getElementById('lib-save-all').checked;
+  const groups = saveAll ? S.groups : S.groups.filter(g=>
+    g.magnets.some(m=>(S.cells&&Object.values(S.cells).some(c=>c.includes(m.id))))
+  );
+  if(!groups.length){ alert('No groups to save.'); return; }
+  // Strip cell-specific data — keep only structure, labels, colours
+  const stripped = groups.map(g=>({
+    id:g.id, name:g.name, color:g.color, open:true,
+    magnets:(g.magnets||[]).map(m=>({
+      id:m.id, label:m.label, color:m.color,
+      subs:(m.subs||[]).map(s=>({id:s.id, label:s.label, color:s.color}))
+    }))
+  }));
+  const sets = loadMagLib();
+  sets.push({ id:'lib-'+Date.now(), name, savedAt:new Date().toISOString(), groups:stripped });
+  saveMagLib(sets);
+  nameInp.value = '';
+  renderLibPanel();
+}
+
+function libAddToSchedule(idx){
+  const sets = loadMagLib();
+  const set = sets[idx]; if(!set) return;
+  const cloned = cloneGroupsFreshIds(set.groups);
+  // Add to schedule groups (outside any folder — they appear as orphan groups at bottom)
+  S.groups.push(...cloned);
+  // Ensure syncSel includes all new magnet IDs
+  cloned.forEach(g=>g.magnets.forEach(m=>{
+    if(!S.syncSel.includes(m.id)) S.syncSel.push(m.id);
+    (m.subs||[]).forEach(s=>{ if(!S.syncSel.includes(s.id)) S.syncSel.push(s.id); });
+  }));
+  save(); rSidebar();
+  // Brief confirmation
+  const lbl = document.getElementById('lib-panel').querySelector('.sphdr h2');
+  const orig = lbl.textContent;
+  lbl.textContent = `✓ "${set.name}" added!`;
+  setTimeout(()=>{ lbl.textContent = orig; }, 2000);
+}
+
+function libDelete(idx){
+  const sets = loadMagLib();
+  const set = sets[idx];
+  if(!set) return;
+  showConfirm(`Delete "${set.name}" from the library?`).then(ok=>{
+    if(!ok) return;
+    sets.splice(idx,1);
+    saveMagLib(sets);
+    renderLibPanel();
+  });
+}
+
+// Panel open/close
+document.getElementById('lib-btn').addEventListener('click', ()=>{
+  renderLibPanel();
+  document.getElementById('lib-panel').classList.add('open');
+});
+document.getElementById('lib-close').addEventListener('click', ()=>{
+  document.getElementById('lib-panel').classList.remove('open');
+});
+document.getElementById('lib-save-btn').addEventListener('click', libSaveCurrent);
+document.getElementById('lib-save-name').addEventListener('keydown', e=>{ if(e.key==='Enter') libSaveCurrent(); });
 
 
 // ── Modal helpers (replaces prompt/confirm) ───────────────────────────────
