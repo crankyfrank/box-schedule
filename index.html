@@ -1958,29 +1958,40 @@ document.getElementById('ep-sync').addEventListener('click',async()=>{
   const calId=tm.calId||S.syncCalId||'primary';
   const colorId=gcalColorId(mag.color);
   const desc=[S.project,tm.notes].filter(Boolean).join('\n\n');
-  const allDay=!tm.start||!tm.end;
+  // Use && (same as openEventPanel): only all-day if BOTH start and end are absent
+  const allDay=!tm.start&&!tm.end;
+  const meet=!!(tm.meet);
   const evBody={
     summary:mag.label,
-    start:allDay?{date:ds}:{dateTime:ds+'T'+tm.start+':00',timeZone:TZ},
-    end:allDay?{date:dsNext}:{dateTime:ds+'T'+tm.end+':00',timeZone:TZ},
+    start:allDay?{date:ds}:{dateTime:ds+'T'+(tm.start||'09:00')+':00',timeZone:TZ},
+    end:allDay?{date:dsNext}:{dateTime:ds+'T'+(tm.end||'17:00')+':00',timeZone:TZ},
     description:desc||undefined,
     location:tm.location||undefined,
     colorId,
+    conferenceData:meet?{createRequest:{requestId:tk+'-'+Date.now(),conferenceSolutionKey:{type:'hangoutsMeet'}}}:undefined,
   };
   showEpStatus('Syncing…',null);
   const calPath='/calendars/'+encodeURIComponent(calId)+'/events';
+  const qs=meet?'?conferenceDataVersion=1':'';
   const doCreate=async()=>{
-    const res=await gcalFetch('POST',calPath,evBody);
-    if(res?.id){S.eventIds[tk]=res.id;save();}
+    const res=await gcalFetch('POST',calPath+qs,evBody);
+    if(res?.id){
+      S.eventIds[tk]=res.id;
+      const link=res?.conferenceData?.hangoutLink||null;
+      if(link){S.times[tk]=S.times[tk]||{};S.times[tk].meetLink=link;}
+      save();
+    }
     return res;
   };
   try{
     const ex=S.eventIds[tk];
     if(ex){
       try{
-        await gcalFetch('PATCH',calPath+'/'+encodeURIComponent(ex),evBody);
+        const res=await gcalFetch('PATCH',calPath+'/'+encodeURIComponent(ex)+qs,evBody);
+        const link=res?.conferenceData?.hangoutLink||null;
+        if(link){S.times[tk]=S.times[tk]||{};S.times[tk].meetLink=link;save();}
       }catch(e){
-        if(String(e).includes('404')||String(e).includes('410')){delete S.eventIds[tk];await doCreate();}
+        if(/404|410|not found/i.test(e.message)){delete S.eventIds[tk];await doCreate();}
         else throw e;
       }
     } else {
@@ -1999,6 +2010,10 @@ document.getElementById('proj-name').addEventListener('blur',e=>{
   S.project=e.target.textContent.trim();
   const idx=schIndex.find(s=>s.id===currentSchId);
   if(idx) idx.name=S.project;
+  // Propagate to header title
+  ensureHdr(); S.hdr.title=S.project;
+  const shTitle=document.getElementById('sh-title');
+  if(shTitle&&document.activeElement!==shTitle) shTitle.textContent=S.project;
   save(); rSchedulePicker();
 });
 const dateInp=document.getElementById('date-input');
@@ -3353,7 +3368,17 @@ function libDelete(idx){
   // Title field
   const titleEl=document.getElementById('sh-title');
   if(titleEl){
-    titleEl.addEventListener('blur',()=>{ensureHdr();S.hdr.title=titleEl.textContent.trim();save();});
+    titleEl.addEventListener('blur',()=>{
+      ensureHdr();
+      S.hdr.title=titleEl.textContent.trim();
+      // Propagate to sidebar project name and schedule index
+      S.project=S.hdr.title||S.project;
+      const pn=document.getElementById('proj-name');
+      if(pn&&document.activeElement!==pn) pn.textContent=S.project;
+      const idx=schIndex.find(s=>s.id===currentSchId);
+      if(idx) idx.name=S.project;
+      save(); rSchedulePicker();
+    });
     titleEl.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();titleEl.blur();}});
   }
 
