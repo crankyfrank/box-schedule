@@ -439,6 +439,25 @@ body.print-preview .bar.soft{outline:none}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 ::-webkit-scrollbar-thumb:hover{background:var(--text-3)}
+
+/* ── Tab bar ── */
+#tab-bar{display:flex;align-items:flex-end;background:var(--surface-2);border-bottom:1px solid var(--border);padding:0 10px;gap:1px;overflow-x:auto;min-height:0;flex-shrink:0;scrollbar-width:none}
+#tab-bar:empty{display:none}
+#tab-bar::-webkit-scrollbar{display:none}
+.sch-tab{display:inline-flex;align-items:center;gap:5px;padding:6px 10px 5px 11px;border-radius:6px 6px 0 0;font-size:11px;font-weight:500;cursor:pointer;white-space:nowrap;color:var(--text-2);background:var(--surface-3);border:1px solid transparent;border-bottom:none;max-width:180px;flex-shrink:0;transition:background .1s,color .1s;margin-bottom:-1px}
+.sch-tab:hover{background:var(--surface);color:var(--text-1)}
+.sch-tab.active{background:var(--surface);color:var(--text-1);font-weight:600;border-color:var(--border);border-bottom-color:var(--surface)}
+.sch-tab-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px}
+.sch-tab-close{flex-shrink:0;width:14px;height:14px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;line-height:1;color:var(--text-3);opacity:0;transition:opacity .1s,background .1s,color .1s}
+.sch-tab:hover .sch-tab-close,.sch-tab.active .sch-tab-close{opacity:1}
+.sch-tab-close:hover{background:#fca5a5!important;color:#b91c1c!important}
+
+/* ── Storage warning ── */
+#storage-warn{display:none;align-items:center;gap:7px;padding:6px 14px;font-size:11px;font-weight:500;background:#fffbeb;border-bottom:1px solid #fde68a;color:#92400e;flex-shrink:0}
+#storage-warn.critical{background:#fef2f2;border-bottom-color:#fca5a5;color:#991b1b}
+#storage-warn-close{margin-left:auto;cursor:pointer;opacity:.5;font-size:12px;padding:0 2px}
+#storage-warn-close:hover{opacity:1}
+@media print{#tab-bar,#storage-warn{display:none!important}}
 </style>
 <link rel="manifest" href="manifest.json">
 <script src="https://accounts.google.com/gsi/client" async></script>
@@ -466,7 +485,7 @@ body.print-preview .bar.soft{outline:none}
         </div>
       </div>
     </div>
-    <button id="sync-btn" class="mdbtn" style="background:#eff6ff;border-color:#bfdbfe;color:#2563eb;font-weight:600;padding:5px 7px" title="Sync to Google Calendar">☁</button>
+    <button id="sync-btn" class="mdbtn" style="background:#eff6ff;border-color:#bfdbfe;color:#2563eb;font-weight:600;padding:5px 8px;font-size:11px;letter-spacing:-.1px" title="Sync to Google Calendar">☁ Sync</button>
     <div style="flex:1"></div>
     <div style="display:flex;align-items:center;gap:5px">
     <button class="mdbtn" id="hdr-toggle-btn" title="Show / hide schedule info header" style="padding:5px 7px">ℹ</button>
@@ -515,6 +534,11 @@ body.print-preview .bar.soft{outline:none}
     </div>
     </div>
   </div>
+  <div id="storage-warn">
+    <span>⚠</span><span id="storage-warn-msg">Storage getting full — export schedules to .bxs files to free space</span>
+    <span id="storage-warn-close" title="Dismiss">✕</span>
+  </div>
+  <div id="tab-bar"></div>
   <div id="cal-wrap">
     <div id="schedule-header">
       <div class="sh-fields">
@@ -998,6 +1022,7 @@ function save(){
     saveSchIndex();
   }catch(e){}
   scheduleFileAutoSave(); // also write to linked .bxs file if one is open
+  checkStorage();
 }
 
 function allMags(){return S.groups.flatMap(g=>g.magnets.flatMap(m=>[m,...(m.subs||[])]));}
@@ -1948,28 +1973,41 @@ document.getElementById('ep-del').addEventListener('click',()=>{
 
 document.getElementById('ep-sync').addEventListener('click',async()=>{
   if(!selBar) return;
-  if(!_gcalToken){showEpStatus('Sign in via ☁ Sync to Calendar first',false);return;}
+  if(!_gcalToken){
+    showEpStatus('Not signed in — open ☁ Sync in the toolbar first',false);
+    return;
+  }
   const tk=getTk(); if(!tk) return;
   const mag=getMag(selBar.magId); if(!mag) return;
   const tm=S.times[tk]||{};
-  const dt=dayDate(selBar.di); const ds=localDateStr(dt);
+  const dt=dayDate(selBar.di);
+  const ds=localDateStr(dt);
+  // Validate date before hitting the API
+  if(!ds||ds.includes('NaN')){
+    showEpStatus('Invalid date — check the schedule start date in the toolbar',false);
+    return;
+  }
   const dtNext=new Date(dt); dtNext.setDate(dtNext.getDate()+1);
   const dsNext=localDateStr(dtNext);
   const calId=tm.calId||S.syncCalId||'primary';
   const colorId=gcalColorId(mag.color);
   const desc=[S.project,tm.notes].filter(Boolean).join('\n\n');
-  // Use && (same as openEventPanel): only all-day if BOTH start and end are absent
+  // Only all-day if BOTH start AND end are absent
   const allDay=!tm.start&&!tm.end;
   const meet=!!(tm.meet);
+  // Normalise time strings: strip any trailing seconds so we only append ':00' once
+  const startT=(tm.start||'09:00').replace(/:\d\d$/,'');
+  const endT=(tm.end||'17:00').replace(/:\d\d$/,'');
   const evBody={
     summary:mag.label,
-    start:allDay?{date:ds}:{dateTime:ds+'T'+(tm.start||'09:00')+':00',timeZone:TZ},
-    end:allDay?{date:dsNext}:{dateTime:ds+'T'+(tm.end||'17:00')+':00',timeZone:TZ},
+    start:allDay?{date:ds}:{dateTime:ds+'T'+startT+':00',timeZone:TZ},
+    end:allDay?{date:dsNext}:{dateTime:ds+'T'+endT+':00',timeZone:TZ},
     description:desc||undefined,
     location:tm.location||undefined,
     colorId,
     conferenceData:meet?{createRequest:{requestId:tk+'-'+Date.now(),conferenceSolutionKey:{type:'hangoutsMeet'}}}:undefined,
   };
+  console.log('ep-sync sending',JSON.stringify(evBody,null,2));
   showEpStatus('Syncing…',null);
   const calPath='/calendars/'+encodeURIComponent(calId)+'/events';
   const qs=meet?'?conferenceDataVersion=1':'';
@@ -2000,7 +2038,7 @@ document.getElementById('ep-sync').addEventListener('click',async()=>{
     showEpStatus('✓ Synced to Google Calendar',true);
   }catch(err){
     showEpStatus('Error: '+(err?.message||String(err)),false);
-    console.error('ep-sync error',err);
+    console.error('ep-sync error',err,evBody);
   }
 });
 
@@ -2014,7 +2052,7 @@ document.getElementById('proj-name').addEventListener('blur',e=>{
   ensureHdr(); S.hdr.title=S.project;
   const shTitle=document.getElementById('sh-title');
   if(shTitle&&document.activeElement!==shTitle) shTitle.textContent=S.project;
-  save(); rSchedulePicker();
+  save(); rSchedulePicker(); renderTabBar();
 });
 const dateInp=document.getElementById('date-input');
 dateInp.value=S.startDate;
@@ -2666,6 +2704,8 @@ function switchSchedule(id){
   document.getElementById('event-panel').classList.remove('open');
   document.getElementById('sync-panel').classList.remove('open');
   updateModeUI();
+  addToOpenTabs(id);
+  renderTabBar();
   rSchedulePicker();
   rSidebar();
   rCal();
@@ -2812,6 +2852,7 @@ async function renameSchedule(id){
   if(id===currentSchId){S.project=name; document.getElementById('proj-name').textContent=name; save();}
   else saveSchIndex();
   rSchedulePicker();
+  renderTabBar();
 }
 
 async function deleteSchedule(id){
@@ -2821,6 +2862,9 @@ async function deleteSchedule(id){
   localStorage.removeItem(schKey(id));
   schIndex=schIndex.filter(s=>s.id!==id);
   saveSchIndex();
+  // Remove from open tabs without triggering switchSchedule (we handle it below)
+  openTabs=openTabs.filter(x=>x!==id);
+  saveOpenTabs();
   if(currentSchId===id){
     currentSchId=schIndex[0].id;
     localStorage.setItem('bxs5_cur',currentSchId);
@@ -2828,9 +2872,11 @@ async function deleteSchedule(id){
     document.getElementById('proj-name').textContent=S.project;
     document.getElementById('date-input').value=S.startDate;
     document.getElementById('weeks-input').value=S.weeks;
+    addToOpenTabs(currentSchId);
     rSidebar(); rCal();
   }
   rSchedulePicker();
+  renderTabBar();
 }
 
 function rSchedulePicker(){
@@ -3022,8 +3068,10 @@ function renderHdrFields(){
   });
 }
 
+function ensureHdr(){if(!S.hdr)S.hdr={visible:true,title:'',fields:[{label:'CLIENT',value:''},{label:'JOB #',value:''},{label:'DIRECTOR',value:''},{label:'COMPANY',value:''}],notes:'',logoL:'',logoR:''};}
+
 function renderScheduleHeader(){
-  if(!S.hdr) S.hdr={visible:false,title:'',client:'',job:'',role:'',company:'',notes:'',logoL:'',logoR:''};
+  ensureHdr();
   const h=S.hdr;
   const el=document.getElementById('schedule-header');
   el.classList.toggle('hidden',h.visible===false);
@@ -3178,7 +3226,8 @@ async function openScheduleFromFile(){
   if(window.showOpenFilePicker){
     try{
       const [handle] = await window.showOpenFilePicker({
-        types: [{description:'Box Schedule file', accept:{'application/json':[BXS_EXT,'.json']}}],
+        types: [{description:'Box Schedule file', accept:{'application/json':[BXS_EXT,'.json'],'application/octet-stream':[BXS_EXT]}}],
+        excludeAcceptAllOption: false,
         multiple: false,
       });
       const file = await handle.getFile();
@@ -3191,7 +3240,7 @@ async function openScheduleFromFile(){
   }
   // Fallback: hidden file input
   const inp = document.createElement('input');
-  inp.type='file'; inp.accept=BXS_EXT+',.json';
+  inp.type='file'; inp.accept=BXS_EXT+',.json,*/*';
   inp.style.display='none';
   document.body.appendChild(inp);
   inp.addEventListener('change', async ()=>{
@@ -3355,8 +3404,8 @@ function libDelete(idx){
 }
 
 // ── Schedule Header ──────────────────────────────────────────────────────────
+// ensureHdr() is defined globally above renderScheduleHeader
 (function(){
-  function ensureHdr(){if(!S.hdr)S.hdr={visible:true,title:'',fields:[{label:'CLIENT',value:''},{label:'JOB #',value:''},{label:'DIRECTOR',value:''},{label:'COMPANY',value:''}],notes:'',logoL:'',logoR:''};}
 
   // Toggle button
   document.getElementById('hdr-toggle-btn').addEventListener('click',()=>{
@@ -3377,7 +3426,7 @@ function libDelete(idx){
       if(pn&&document.activeElement!==pn) pn.textContent=S.project;
       const idx=schIndex.find(s=>s.id===currentSchId);
       if(idx) idx.name=S.project;
-      save(); rSchedulePicker();
+      save(); rSchedulePicker(); renderTabBar();
     });
     titleEl.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();titleEl.blur();}});
   }
@@ -3516,10 +3565,103 @@ document.getElementById('lib-save-name').addEventListener('keydown', e=>{ if(e.k
   });
 })();
 
+// ── Open Tabs ────────────────────────────────────────────────
+const TABS_KEY='bxs5_tabs';
+let openTabs=[];
+
+function loadOpenTabs(){
+  try{openTabs=JSON.parse(localStorage.getItem(TABS_KEY))||[];}
+  catch{openTabs=[];}
+}
+function saveOpenTabs(){
+  try{localStorage.setItem(TABS_KEY,JSON.stringify(openTabs));}catch(e){}
+}
+function addToOpenTabs(id){
+  if(!openTabs.includes(id)) openTabs.push(id);
+  saveOpenTabs();
+}
+function closeTab(id){
+  openTabs=openTabs.filter(x=>x!==id);
+  saveOpenTabs();
+  if(id===currentSchId){
+    // Switch to the rightmost remaining tab, or any schedule
+    const next=openTabs.length?openTabs[openTabs.length-1]:
+      schIndex.find(s=>s.id!==id)?.id;
+    if(next) switchSchedule(next);
+  }
+  renderTabBar();
+}
+
+function renderTabBar(){
+  const bar=document.getElementById('tab-bar');
+  if(!bar) return;
+  bar.innerHTML='';
+  // Clean tabs: remove IDs that no longer exist in schIndex
+  openTabs=openTabs.filter(id=>schIndex.some(s=>s.id===id));
+  saveOpenTabs();
+  openTabs.forEach(id=>{
+    const entry=schIndex.find(s=>s.id===id);
+    if(!entry) return;
+    const tab=document.createElement('div');
+    tab.className='sch-tab'+(id===currentSchId?' active':'');
+    const nameEl=document.createElement('span');
+    nameEl.className='sch-tab-name';
+    nameEl.textContent=entry.name||'Untitled';
+    const closeEl=document.createElement('span');
+    closeEl.className='sch-tab-close';
+    closeEl.textContent='✕';
+    closeEl.title='Close tab';
+    tab.appendChild(nameEl);
+    tab.appendChild(closeEl);
+    closeEl.addEventListener('click',e=>{e.stopPropagation();closeTab(id);});
+    tab.addEventListener('click',()=>{if(id!==currentSchId)switchSchedule(id);});
+    bar.appendChild(tab);
+  });
+}
+
+// ── Storage usage warning ─────────────────────────────────────
+let _storageWarnDismissed=false;
+
+function checkStorage(){
+  if(_storageWarnDismissed) return;
+  try{
+    let total=0;
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      const v=localStorage.getItem(k)||'';
+      total+=k.length+v.length;
+    }
+    // localStorage uses UTF-16 — 2 bytes per char; typical limit is 5MB
+    const mb=(total*2)/(1024*1024);
+    const warn=document.getElementById('storage-warn');
+    const msg=document.getElementById('storage-warn-msg');
+    if(!warn||!msg) return;
+    if(mb>4.0){
+      warn.className='critical';
+      msg.textContent=`Storage almost full (${mb.toFixed(1)} MB / ~5 MB) — export schedules to .bxs files now to prevent data loss`;
+      warn.style.display='flex';
+    } else if(mb>2.8){
+      warn.className='';
+      msg.textContent=`Storage at ${mb.toFixed(1)} MB / ~5 MB — consider exporting schedules to .bxs files to stay safe`;
+      warn.style.display='flex';
+    } else {
+      warn.style.display='none';
+    }
+  }catch(e){}
+}
+document.getElementById('storage-warn-close').addEventListener('click',()=>{
+  _storageWarnDismissed=true;
+  document.getElementById('storage-warn').style.display='none';
+});
+
 // ── Init ─────────────────────────────────────────────────────
+loadOpenTabs();
+addToOpenTabs(currentSchId); // ensure current schedule is always in tabs
 document.getElementById('proj-name').textContent=S.project;
 rSchedulePicker();
 rSidebar(); rCal();
+renderTabBar();
+checkStorage();
 </script>
 </body>
 </html>
