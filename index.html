@@ -35,7 +35,7 @@
 body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text-1);display:flex;height:100vh;overflow:hidden;user-select:none;-webkit-font-smoothing:antialiased;font-size:13px}
 
 /* ── SIDEBAR ── */
-#sidebar{width:222px;min-width:222px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
+#sidebar{width:222px;min-width:222px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
 #sb-header{padding:14px 14px 12px;border-bottom:1px solid var(--border-light)}
 #app-brand{display:flex;align-items:center;gap:8px;margin-bottom:12px}
 #app-logo{width:26px;height:26px;background:var(--accent);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;flex-shrink:0;letter-spacing:-0.5px}
@@ -142,7 +142,8 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg)
 #sch-panel,#holiday-menu,#export-menu{background:var(--surface)!important;border:1px solid var(--border)!important;border-radius:var(--r-lg)!important;box-shadow:var(--shadow-lg)!important}
 
 /* ── CALENDAR ── */
-#cal-wrap{flex:1;overflow:auto;padding:14px 18px 24px}
+#cal-wrap{flex:1;overflow:auto;padding:14px 18px 24px;transition:margin-right .22s cubic-bezier(.25,.46,.45,.94)}
+#cal-wrap.ep-open{margin-right:290px}
 #cal{min-width:600px}
 .cal-hdr{display:flex;margin-bottom:6px;padding-left:30px}
 .cal-hdr-day{flex:1;text-align:center;font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.6px}
@@ -169,7 +170,7 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg)
 
 /* ── EVENT PANEL ── */
 #event-panel{position:fixed;top:0;right:-310px;bottom:0;width:290px;background:var(--surface);border-left:1px solid var(--border);z-index:190;display:flex;flex-direction:column;transition:right .22s cubic-bezier(.25,.46,.45,.94);box-shadow:var(--shadow-lg)}
-#event-panel.open{right:0}
+#event-panel.open{right:222px}
 .ep-hdr{padding:0 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border-light);min-height:54px;flex-shrink:0}
 .ep-color{width:14px;height:14px;border-radius:50%;flex-shrink:0;transition:background .15s}
 #ep-label-sel{flex:1;min-width:0;border:none;background:none;font-size:14px;font-weight:700;color:var(--text-1);outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;font-family:inherit;padding:0;max-width:160px}
@@ -208,7 +209,7 @@ textarea.ep-inp{resize:vertical;min-height:70px;font-family:inherit;line-height:
 
 /* ── SYNC PANEL ── */
 #sync-panel,#lib-panel{position:fixed;top:0;right:-340px;bottom:0;width:320px;background:var(--surface);border-left:1px solid var(--border);z-index:200;display:flex;flex-direction:column;transition:right .22s cubic-bezier(.25,.46,.45,.94);box-shadow:var(--shadow-lg)}
-#sync-panel.open,#lib-panel.open{right:0}
+#sync-panel.open,#lib-panel.open{right:222px}
 #lib-scroll{flex:1;overflow-y:auto;min-height:0}
 .lib-set{border:1.5px solid var(--border);border-radius:var(--r-md);margin-bottom:8px;overflow:hidden}
 .lib-set-hdr{display:flex;align-items:center;padding:9px 10px;gap:8px;background:var(--surface-2);cursor:default}
@@ -393,22 +394,6 @@ body.print-preview .bar.soft{outline:none}
 </div>
 <div id="ghost"></div>
 
-<div id="sidebar">
-  <div id="sb-header">
-    <div id="app-brand">
-      <div id="app-logo">B</div>
-      <span id="app-title">Box Schedule</span>
-    </div>
-    <div id="proj-name" contenteditable="true" spellcheck="false">A Summer of Excitement</div>
-    <div id="proj-sub">Production Calendar</div>
-  </div>
-  <div id="groups-container"></div>
-  <div id="trash-zone">🗑 Drag bar here to erase</div>
-  <div id="sb-footer">
-    <button id="sync-btn">☁ Sync to Calendar</button>
-  </div>
-</div>
-
 <div id="main">
   <div id="toolbar">
     <div style="position:relative;margin-left:4px">
@@ -550,6 +535,22 @@ body.print-preview .bar.soft{outline:none}
       <button class="ep-del-btn" id="ep-del">🗑 Remove from calendar</button>
       <button class="ep-sync-btn" id="ep-sync">☁ Sync</button>
     </div>
+  </div>
+</div>
+
+<div id="sidebar">
+  <div id="sb-header">
+    <div id="app-brand">
+      <div id="app-logo">B</div>
+      <span id="app-title">Box Schedule</span>
+    </div>
+    <div id="proj-name" contenteditable="true" spellcheck="false">A Summer of Excitement</div>
+    <div id="proj-sub">Production Calendar</div>
+  </div>
+  <div id="groups-container"></div>
+  <div id="trash-zone">🗑 Drag bar here to erase</div>
+  <div id="sb-footer">
+    <button id="sync-btn">☁ Sync to Calendar</button>
   </div>
 </div>
 
@@ -1735,6 +1736,7 @@ function openEventPanel(di,magId){
   const tm=S.times[tk]||{};
   const ep=document.getElementById('event-panel');
   ep.classList.add('open');
+  document.getElementById('cal-wrap').classList.add('ep-open');
   document.getElementById('sync-panel').classList.remove('open');
 
   // Header — populate label dropdown
@@ -1833,12 +1835,14 @@ document.getElementById('ep-locked').addEventListener('click',()=>{
 });
 document.getElementById('ep-close').addEventListener('click',()=>{
   document.getElementById('event-panel').classList.remove('open');
+  document.getElementById('cal-wrap').classList.remove('ep-open');
   selBar=null;
 });
 document.getElementById('ep-del').addEventListener('click',()=>{
   if(!selBar) return;
   removeDay(selBar.di,selBar.magId); selBar=null;
   document.getElementById('event-panel').classList.remove('open');
+  document.getElementById('cal-wrap').classList.remove('ep-open');
   save(); rCal();
 });
 
