@@ -710,9 +710,8 @@ body.print-preview .bar.soft{outline:none}
       </div>
     </div>
     <div class="spsec" style="padding-top:10px">
-      <label>Saved sets</label>
       <div id="lib-list"></div>
-      <div id="lib-empty" style="font-size:11px;color:#bbb;text-align:center;padding:20px 0;display:none">No saved sets yet — save your first one above</div>
+      <div id="lib-empty" style="font-size:11px;color:#bbb;text-align:center;padding:20px 0;display:none">No sets yet</div>
     </div>
   </div>
 </div>
@@ -3300,6 +3299,17 @@ const MAGLIB_KEY = 'bxs5_maglib';
 function loadMagLib(){ try{ return JSON.parse(localStorage.getItem(MAGLIB_KEY))||[]; }catch{ return []; } }
 function saveMagLib(arr){ try{ localStorage.setItem(MAGLIB_KEY, JSON.stringify(arr)); }catch(e){} }
 
+// Built-in library entries derived from TEMPLATES (excluding Blank)
+const BUILTIN_LIBS = TEMPLATES
+  .filter(t => t.groups && t.groups.length > 0)
+  .map(t => ({
+    id: 'builtin-'+t.id,
+    name: t.name,
+    icon: t.icon || '',
+    desc: t.desc || '',
+    groups: JSON.parse(JSON.stringify(t.groups)),
+  }));
+
 // Deep-copy groups with fresh IDs so they don't clash when loaded into a schedule
 function cloneGroupsFreshIds(groups){
   return groups.map(g=>{
@@ -3317,35 +3327,57 @@ function cloneGroupsFreshIds(groups){
   });
 }
 
+function makeLibCard(set, idx, isBuiltin){
+  const el = document.createElement('div');
+  el.className = 'lib-set';
+  const groupSummary = (set.groups||[]).map(g=>{
+    const count = (g.magnets||[]).length;
+    const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${g.color||'#888'};margin-right:3px;vertical-align:middle"></span>`;
+    return dot+g.name+(count?` (${count})`:'');
+  }).join(' &nbsp;·&nbsp; ');
+  const nameHtml = (set.icon?set.icon+' ':'')+set.name;
+  const delHtml = isBuiltin ? '' : `<button class="lib-set-btn danger" data-action="del">✕</button>`;
+  el.innerHTML = `
+    <div class="lib-set-hdr">
+      <span class="lib-set-name">${nameHtml}</span>
+      <span class="lib-set-meta">${(set.groups||[]).length} group${(set.groups||[]).length!==1?'s':''}</span>
+      <div class="lib-set-actions">
+        <button class="lib-set-btn" data-action="add">+ Add to schedule</button>
+        ${delHtml}
+      </div>
+    </div>
+    <div class="lib-set-grps">${groupSummary||'(no groups)'}</div>`;
+  el.querySelector('[data-action="add"]').addEventListener('click', ()=>{
+    if(isBuiltin) libAddBuiltin(idx); else libAddToSchedule(idx);
+  });
+  if(!isBuiltin) el.querySelector('[data-action="del"]').addEventListener('click', ()=>libDelete(idx));
+  return el;
+}
+
+function libSectionHdr(text, first){
+  const d = document.createElement('div');
+  d.style.cssText = `font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.6px;${first?'':'margin-top:14px;'}margin-bottom:6px`;
+  d.textContent = text;
+  return d;
+}
+
 function renderLibPanel(){
-  const sets = loadMagLib();
+  const userSets = loadMagLib();
   const list = document.getElementById('lib-list');
   const empty = document.getElementById('lib-empty');
   list.innerHTML = '';
-  if(sets.length === 0){ empty.style.display='block'; return; }
+  const hasBuiltin = BUILTIN_LIBS.length > 0;
+  const hasUser = userSets.length > 0;
+  if(!hasBuiltin && !hasUser){ empty.style.display='block'; return; }
   empty.style.display = 'none';
-  sets.forEach((set, idx)=>{
-    const el = document.createElement('div');
-    el.className = 'lib-set';
-    const groupSummary = (set.groups||[]).map(g=>{
-      const count = (g.magnets||[]).length;
-      const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${g.color||'#888'};margin-right:3px;vertical-align:middle"></span>`;
-      return dot + g.name + (count ? ` (${count})` : '');
-    }).join(' &nbsp;·&nbsp; ');
-    el.innerHTML = `
-      <div class="lib-set-hdr">
-        <span class="lib-set-name">${set.name}</span>
-        <span class="lib-set-meta">${(set.groups||[]).length} group${set.groups.length!==1?'s':''}</span>
-        <div class="lib-set-actions">
-          <button class="lib-set-btn" data-action="add" data-idx="${idx}">+ Add to schedule</button>
-          <button class="lib-set-btn danger" data-action="del" data-idx="${idx}">✕</button>
-        </div>
-      </div>
-      <div class="lib-set-grps">${groupSummary||'(no groups)'}</div>`;
-    el.querySelector('[data-action="add"]').addEventListener('click', ()=>libAddToSchedule(idx));
-    el.querySelector('[data-action="del"]').addEventListener('click', ()=>libDelete(idx));
-    list.appendChild(el);
-  });
+  if(hasBuiltin){
+    list.appendChild(libSectionHdr('Built-in', true));
+    BUILTIN_LIBS.forEach((set, idx)=> list.appendChild(makeLibCard(set, idx, true)));
+  }
+  if(hasUser){
+    list.appendChild(libSectionHdr('Your saved sets', !hasBuiltin));
+    userSets.forEach((set, idx)=> list.appendChild(makeLibCard(set, idx, false)));
+  }
 }
 
 function libSaveCurrent(){
@@ -3385,6 +3417,21 @@ function libAddToSchedule(idx){
   }));
   save(); rSidebar();
   // Brief confirmation
+  const lbl = document.getElementById('lib-panel').querySelector('.sphdr h2');
+  const orig = lbl.textContent;
+  lbl.textContent = `✓ "${set.name}" added!`;
+  setTimeout(()=>{ lbl.textContent = orig; }, 2000);
+}
+
+function libAddBuiltin(idx){
+  const set = BUILTIN_LIBS[idx]; if(!set) return;
+  const cloned = cloneGroupsFreshIds(set.groups);
+  S.groups.push(...cloned);
+  cloned.forEach(g=>g.magnets.forEach(m=>{
+    if(!S.syncSel.includes(m.id)) S.syncSel.push(m.id);
+    (m.subs||[]).forEach(s=>{ if(!S.syncSel.includes(s.id)) S.syncSel.push(s.id); });
+  }));
+  save(); rSidebar();
   const lbl = document.getElementById('lib-panel').querySelector('.sphdr h2');
   const orig = lbl.textContent;
   lbl.textContent = `✓ "${set.name}" added!`;
