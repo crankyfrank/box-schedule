@@ -126,7 +126,7 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg)
 
 /* ── TOOLBAR ── */
 #main{flex:1;display:flex;flex-direction:column;overflow:hidden}
-#toolbar{padding:8px 16px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap;box-shadow:var(--shadow-xs)}
+#toolbar{padding:6px 12px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:nowrap;box-shadow:var(--shadow-xs)}
 .tb-sep{width:1px;height:16px;background:var(--border-light);flex-shrink:0}
 .tlabel{font-size:11px;color:var(--text-3);font-weight:500}
 #date-input{font-size:11px;padding:4px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);color:var(--text-2);background:var(--surface-2);font-family:inherit;transition:border-color .15s}
@@ -340,7 +340,8 @@ body.print-preview #cal-wrap{
   border-radius:4px;
   box-shadow:0 2px 20px rgba(0,0,0,.15);
 }
-body.print-preview #print-header{display:flex!important}
+body.print-preview #schedule-header{display:flex!important}
+body.print-preview #sh-meta{display:block!important}
 body.print-preview .dcell{height:58px;border-color:#ddd}
 body.print-preview .week-row{margin-bottom:2px}
 body.print-preview .week-label{font-size:10px;color:#555}
@@ -353,7 +354,7 @@ body.print-preview .bar.soft{outline:none}
 @media print{
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   body{display:block;height:auto;overflow:visible;background:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
-  #print-preview-bar,#sidebar,#toolbar,#event-panel,#sync-panel,#lib-panel,#ghost,#export-menu,#sch-panel{display:none!important}
+  #print-preview-bar,#sidebar,#toolbar,#event-panel,#sync-panel,#lib-panel,#ghost,#export-menu,#sch-panel,#hdr-toggle-btn{display:none!important}
   #main{display:block;overflow:visible;padding:0}
   #cal-wrap{overflow:visible;padding:0 4px;background:#fff;max-width:none;margin:0;box-shadow:none;border-radius:0}
   .dcell{height:58px;break-inside:avoid;border-color:#ddd}
@@ -364,18 +365,74 @@ body.print-preview .bar.soft{outline:none}
   .bar.soft{outline:none!important}
   a{text-decoration:none;color:inherit}
 }
-#print-header{
-  display:none;padding:0 0 12px;margin-bottom:14px;
-  border-bottom:2px solid #1e293b;
-  align-items:baseline;gap:16px;
+/* ── SCHEDULE HEADER ── */
+#schedule-header{
+  display:flex;padding:14px 18px 12px;background:var(--surface);
+  border-bottom:1px solid var(--border);gap:14px;flex-shrink:0;align-items:stretch;
 }
-@media print{#print-header{display:flex!important}}
-#print-header-title{
-  font-size:20px;font-weight:700;letter-spacing:-0.3px;color:#111;flex:1;
+#schedule-header.hidden{display:none}
+@media print{#schedule-header{display:flex!important;border-bottom:2px solid #111!important;padding-bottom:14px!important;margin-bottom:4px!important}}
+.sh-logo-zone{
+  width:130px;min-width:72px;border:2px dashed var(--border);border-radius:var(--r-md);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  overflow:hidden;transition:border-color .15s;flex-shrink:0;position:relative;min-height:80px;
 }
-#print-header-meta{
-  font-size:11px;color:#666;white-space:nowrap;
+.sh-logo-zone:hover{border-color:var(--text-3)}
+.sh-logo-placeholder{display:flex;flex-direction:column;align-items:center;gap:3px;
+  color:var(--text-3);font-size:9px;font-weight:600;text-align:center;padding:6px;line-height:1.4;pointer-events:none}
+@media print{.sh-logo-zone{border:none!important}.sh-logo-placeholder{display:none!important}}
+.sh-logo-zone img{width:100%;height:100%;object-fit:contain;padding:8px}
+.sh-logo-del{
+  position:absolute;top:3px;right:3px;background:rgba(255,255,255,.92);border:none;border-radius:50%;
+  width:17px;height:17px;font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  opacity:0;transition:opacity .15s;color:var(--danger);line-height:1;
 }
+.sh-logo-zone:hover .sh-logo-del{opacity:1}
+@media print{.sh-logo-del{display:none!important}}
+.sh-fields{flex:1.2;display:flex;flex-direction:column;justify-content:center;gap:4px}
+.sh-field-row{display:flex;align-items:baseline;gap:8px}
+.sh-field-lbl{
+  font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;
+  letter-spacing:.7px;min-width:66px;flex-shrink:0;line-height:1.8;
+}
+.sh-field-lbl[contenteditable]{
+  outline:none;border-radius:3px;padding:0 2px;margin:0 -2px;cursor:text;
+  border-bottom:1px solid transparent;transition:border-color .15s,background .15s;
+}
+.sh-field-lbl[contenteditable]:hover{background:var(--surface-2)}
+.sh-field-lbl[contenteditable]:focus{background:var(--accent-bg);border-bottom-color:var(--accent-border);color:var(--accent)}
+.sh-field-lbl[contenteditable]:empty::before{content:attr(data-placeholder);color:var(--border);font-weight:600;text-transform:uppercase}
+.sh-field-row-del{
+  opacity:0;background:none;border:none;cursor:pointer;
+  color:var(--text-3);font-size:10px;padding:0 2px;margin-left:4px;
+  line-height:1;flex-shrink:0;transition:color .1s,opacity .1s;
+}
+.sh-field-row:hover .sh-field-row-del{opacity:1}
+.sh-field-row-del:hover{color:var(--danger)}
+@media print{.sh-field-row-del,.sh-add-field{display:none!important}}
+.sh-add-field{
+  margin-top:4px;background:none;border:1.5px dashed var(--border);border-radius:var(--r-sm);
+  font-size:9px;font-weight:600;color:var(--text-3);cursor:pointer;padding:3px 8px;
+  font-family:inherit;letter-spacing:.3px;transition:all .15s;
+}
+.sh-add-field:hover{border-color:var(--text-3);color:var(--text-2)}
+.sh-field-val{
+  font-size:12px;color:var(--text-1);font-weight:600;outline:none;flex:1;
+  border-bottom:1px solid transparent;transition:border-color .15s;min-width:0;
+}
+.sh-field-val:focus{border-bottom-color:var(--accent-border)}
+.sh-field-val:empty::before{content:attr(data-placeholder);color:var(--text-3);font-weight:400;font-style:italic;pointer-events:none}
+@media print{.sh-field-val:empty::before{content:''}.sh-field-val{border-bottom:none!important}}
+.sh-title-val{font-size:17px;font-weight:800;letter-spacing:-.4px;color:#111;margin-bottom:2px}
+.sh-notes{flex:1;display:flex;flex-direction:column;border-left:1px solid var(--border-light);padding-left:14px;min-width:0}
+.sh-notes-lbl{font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px}
+.sh-notes-val{
+  flex:1;font-size:11px;color:var(--text-2);line-height:1.7;white-space:pre-wrap;
+  border-bottom:none!important;min-height:48px;font-weight:400;
+}
+@media print{.sh-notes{border-left:1px solid #ddd}}
+.sh-hdr-meta{font-size:10px;color:#888;margin-top:auto;padding-top:4px;white-space:nowrap}
+@media print{.sh-hdr-meta{display:block!important}}
 
 /* ── SCROLLBARS ── */
 ::-webkit-scrollbar{width:5px;height:5px}
@@ -409,14 +466,17 @@ body.print-preview .bar.soft{outline:none}
         </div>
       </div>
     </div>
+    <button id="sync-btn" class="mdbtn" style="background:#eff6ff;border-color:#bfdbfe;color:#2563eb;font-weight:600;padding:5px 7px" title="Sync to Google Calendar">☁</button>
     <div style="flex:1"></div>
-    <div style="display:flex;align-items:center;gap:8px">
-    <span class="tlabel">From</span><input type="date" id="date-input">
-    <span class="tlabel">Weeks</span><input type="number" id="weeks-input" value="13" min="1" max="52">
+    <div style="display:flex;align-items:center;gap:5px">
+    <button class="mdbtn" id="hdr-toggle-btn" title="Show / hide schedule info header" style="padding:5px 7px">ℹ</button>
     <div class="tb-sep"></div>
-    <button id="lib-btn" class="mdbtn" style="background:#fafaf8">📚 Library</button>
+    <input type="date" id="date-input" title="Start date">
+    <input type="number" id="weeks-input" value="13" min="1" max="52" title="Number of weeks">
+    <div class="tb-sep"></div>
+    <button id="lib-btn" class="mdbtn" style="background:#fafaf8;padding:5px 7px" title="Magnet Library">📚</button>
     <div style="position:relative">
-      <button class="mdbtn" id="holiday-btn" style="background:#fafaf8">🗓 Holidays</button>
+      <button class="mdbtn" id="holiday-btn" style="background:#fafaf8;padding:5px 7px" title="Add public holidays">🗓</button>
       <div id="holiday-menu" style="display:none;position:absolute;right:0;top:32px;background:#fff;border:1px solid #e0e0da;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:300;width:220px;padding:12px 14px">
         <div style="font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Auto-populate public holidays</div>
         <div style="display:flex;gap:6px;margin-bottom:8px">
@@ -435,7 +495,7 @@ body.print-preview .bar.soft{outline:none}
     </div>
     <span id="bxs-autosave-lbl" style="display:none;font-size:10px;color:var(--text-3);font-weight:500;transition:opacity .4s;white-space:nowrap"></span>
     <div style="position:relative;margin-left:8px">
-      <button class="mdbtn" id="export-btn" style="background:#fafaf8">↓ Export</button>
+      <button class="mdbtn" id="export-btn" style="background:#fafaf8;padding:5px 9px" title="Save / Export">↓ Export</button>
       <div id="export-menu" style="display:none;position:absolute;right:0;top:32px;background:#fff;border:1px solid #e0e0da;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:300;min-width:210px;overflow:hidden">
         <div style="padding:8px 14px 4px;font-size:9px;font-weight:700;color:#bbb;letter-spacing:.5px;text-transform:uppercase">Save &amp; Open</div>
         <div class="exp-item" id="exp-save" style="padding:10px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f0f0ea">
@@ -455,7 +515,29 @@ body.print-preview .bar.soft{outline:none}
     </div>
     </div>
   </div>
-  <div id="cal-wrap"><div id="print-header"><span id="print-header-title"></span><span id="print-header-meta"></span></div><div id="cal"></div></div>
+  <div id="cal-wrap">
+    <div id="schedule-header">
+      <div class="sh-fields">
+        <div class="sh-field-row" style="margin-bottom:3px">
+          <span class="sh-field-val sh-title-val" id="sh-title" contenteditable="true" data-placeholder="Schedule title" spellcheck="false"></span>
+        </div>
+        <div id="sh-fields-list"></div>
+        <button class="sh-add-field" id="sh-add-field">+ Add field</button>
+        <div class="sh-hdr-meta" id="sh-meta" style="display:none"></div>
+      </div>
+      <div class="sh-notes">
+        <div class="sh-notes-lbl">NOTES / STEPS</div>
+        <span class="sh-field-val sh-notes-val" id="sh-notes" contenteditable="true" data-placeholder="Key notes, steps or production bursts…" spellcheck="false"></span>
+      </div>
+      <div class="sh-logo-zone" id="sh-logo-r" title="Click to upload agency / client logo">
+        <div class="sh-logo-placeholder">📷<br>Add logo</div>
+        <img id="sh-logo-r-img" src="" style="display:none">
+        <button class="sh-logo-del" id="sh-logo-r-del">✕</button>
+        <input type="file" id="sh-logo-r-file" accept="image/*" style="display:none">
+      </div>
+    </div>
+    <div id="cal"></div>
+  </div>
   <!-- Event editor panel -->
   <div id="event-panel">
     <div class="ep-hdr">
@@ -549,9 +631,7 @@ body.print-preview .bar.soft{outline:none}
   </div>
   <div id="groups-container"></div>
   <div id="trash-zone">🗑 Drag bar here to erase</div>
-  <div id="sb-footer">
-    <button id="sync-btn">☁ Sync to Calendar</button>
-  </div>
+  <div id="sb-footer" style="display:none"></div>
 </div>
 
 <div id="sync-panel">
@@ -597,10 +677,8 @@ body.print-preview .bar.soft{outline:none}
     <div class="spsec" style="padding-bottom:0">
       <label>Save current magnets</label>
       <div style="font-size:10px;color:#aaa;margin-bottom:8px">Save your groups &amp; labels as a named set you can load into any schedule</div>
-      <div style="display:flex;gap:6px">
-        <input id="lib-save-name" class="spinp" placeholder="Set name (e.g. Film Crew, Acro)…" style="flex:1">
-        <button id="lib-save-btn" class="spbtn" style="margin:0;white-space:nowrap;padding:0 12px">Save</button>
-      </div>
+      <input id="lib-save-name" class="spinp" placeholder="Set name (e.g. Film Crew, Acro)…" style="width:100%;margin-bottom:6px">
+      <button id="lib-save-btn" class="spbtn" style="width:100%;margin:0">Save</button>
       <div style="margin-top:8px;font-size:10px;color:#aaa">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:10px;font-weight:400">
           <input type="checkbox" id="lib-save-all" checked style="accent-color:var(--accent)"> Save all groups
@@ -858,6 +936,10 @@ function defaultState(name){
     activeMag:null,eraseMode:false,
     syncCalId:'',syncInv:{},syncGlobal:'',syncSel:[],
     holCountry:'AU',holState:'AU-VIC',
+    hdr:{visible:true,title:'',fields:[
+      {label:'CLIENT',value:''},{label:'JOB #',value:''},
+      {label:'DIRECTOR',value:''},{label:'COMPANY',value:''},
+    ],notes:'',logoL:'',logoR:''},
   };
 }
 
@@ -888,6 +970,23 @@ function defaultState(name){
   (data.groups||[]).forEach(g=>{
     if(!g.color) g.color=deriveGroupBase(g);
   });
+  // Migrate: ensure hdr exists
+  if(!data.hdr) data.hdr={visible:true,title:'',fields:[
+    {label:'CLIENT',value:''},{label:'JOB #',value:''},
+    {label:'DIRECTOR',value:''},{label:'COMPANY',value:''},
+  ],notes:'',logoL:'',logoR:''};
+  // Migrate: convert old flat fields (client/job/role/company) to fields array
+  if(!Array.isArray(data.hdr.fields)){
+    const h=data.hdr;
+    data.hdr.fields=[
+      {label:'CLIENT',value:h.client||''},{label:'JOB #',value:h.job||''},
+      {label:'DIRECTOR',value:h.role||''},{label:'COMPANY',value:h.company||''},
+    ].filter(f=>f.value); // drop empty ones from migration
+    if(!data.hdr.fields.length) data.hdr.fields=[
+      {label:'CLIENT',value:''},{label:'JOB #',value:''},
+      {label:'DIRECTOR',value:''},{label:'COMPANY',value:''},
+    ];
+  }
   S=data;
 })();
 
@@ -1022,7 +1121,7 @@ document.addEventListener('pointerdown', e=>{
   // ── Contenteditable labels — let browser handle when active
   if(e.target.isContentEditable) return;
   // ── UI chrome
-  if(e.target.closest('#toolbar,#sync-panel,#event-panel,#sb-footer,#addgrp-btn,#sync-btn,#sb-header,button')) return;
+  if(e.target.closest('#toolbar,#sync-panel,#event-panel,#sb-footer,#addgrp-btn,#sync-btn,#sb-header,#schedule-header,button')) return;
 
   if(mag){
     // ── Detect double-click on the label (dblclick event is eaten by preventDefault)
@@ -1634,6 +1733,7 @@ function weekBars(wi){
 }
 
 function rCal(){
+  renderScheduleHeader();
   const cal=document.getElementById('cal');
   cal.innerHTML='';
   const today=new Date(); today.setHours(0,0,0,0);
@@ -2849,12 +2949,101 @@ document.getElementById('exp-csv').addEventListener('click', () => {
 });
 
 function populatePrintHeader(){
-  const sd = startDt();
-  const ed = dayDate(totalDays() - 1);
-  const fmtDate = d => d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
-  document.getElementById('print-header-title').textContent = S.project;
-  document.getElementById('print-header-meta').textContent =
-    fmtDate(sd) + ' – ' + fmtDate(ed) + '  ·  ' + S.weeks + ' wks';
+  // Legacy — now handled by renderScheduleHeader
+  renderScheduleHeader();
+}
+
+function renderHdrFields(){
+  const container=document.getElementById('sh-fields-list');
+  if(!container) return;
+  // Don't re-render if user is actively editing inside
+  if(container.contains(document.activeElement)) return;
+  const fields=S.hdr?.fields||[];
+  container.innerHTML='';
+  fields.forEach((f,i)=>{
+    const row=document.createElement('div');
+    row.className='sh-field-row';
+    row.dataset.idx=i;
+    const lbl=document.createElement('span');
+    lbl.className='sh-field-lbl';
+    lbl.setAttribute('contenteditable','true');
+    lbl.setAttribute('spellcheck','false');
+    lbl.setAttribute('data-placeholder','LABEL');
+    lbl.textContent=f.label||'';
+    const val=document.createElement('span');
+    val.className='sh-field-val';
+    val.setAttribute('contenteditable','true');
+    val.setAttribute('spellcheck','false');
+    val.setAttribute('data-placeholder',f.label||'Value');
+    val.textContent=f.value||'';
+    const del=document.createElement('button');
+    del.className='sh-field-row-del';
+    del.textContent='✕';
+    del.title='Remove field';
+    del.dataset.idx=i;
+    // Label blur — save label text
+    lbl.addEventListener('blur',()=>{
+      const txt=lbl.textContent.trim();
+      if(S.hdr.fields[i]) S.hdr.fields[i].label=txt;
+      val.setAttribute('data-placeholder',txt||'Value');
+      save();
+    });
+    lbl.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();lbl.blur();}});
+    // Value blur — save value text
+    val.addEventListener('blur',()=>{
+      if(S.hdr.fields[i]) S.hdr.fields[i].value=val.textContent.trim();
+      save();
+    });
+    val.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();val.blur();}});
+    // Delete row
+    del.addEventListener('click',()=>{
+      S.hdr.fields.splice(i,1);
+      save(); renderHdrFields();
+    });
+    row.appendChild(lbl);
+    row.appendChild(val);
+    row.appendChild(del);
+    container.appendChild(row);
+  });
+}
+
+function renderScheduleHeader(){
+  if(!S.hdr) S.hdr={visible:false,title:'',client:'',job:'',role:'',company:'',notes:'',logoL:'',logoR:''};
+  const h=S.hdr;
+  const el=document.getElementById('schedule-header');
+  el.classList.toggle('hidden',h.visible===false);
+
+  // Title: use hdr.title if set, else fall back to S.project
+  const titleEl=document.getElementById('sh-title');
+  if(document.activeElement!==titleEl) titleEl.textContent=h.title||S.project||'';
+
+  // Dynamic fields
+  renderHdrFields();
+
+  // Notes
+  const notesEl=document.getElementById('sh-notes');
+  if(notesEl&&document.activeElement!==notesEl) notesEl.textContent=h.notes||'';
+
+  // Meta (date range — shown in print)
+  const sd=startDt(), ed=dayDate(totalDays()-1);
+  const fmt=d=>d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
+  const metaEl=document.getElementById('sh-meta');
+  if(metaEl) metaEl.textContent=fmt(sd)+' – '+fmt(ed)+'  ·  '+S.weeks+' wks';
+
+  // Logos
+  function applyLogo(side){
+    const img=document.getElementById('sh-logo-'+side+'-img');
+    if(!img) return;
+    const ph=document.querySelector('#sh-logo-'+side+' .sh-logo-placeholder');
+    const src=h['logo'+side.toUpperCase()];
+    if(src){img.src=src;img.style.display='';if(ph)ph.style.display='none';}
+    else{img.src='';img.style.display='none';if(ph)ph.style.display='';}
+  }
+  applyLogo('l'); applyLogo('r');
+
+  // Toggle button — lit up when header is HIDDEN (so it acts as a "show" cue)
+  const btn=document.getElementById('hdr-toggle-btn');
+  if(btn) btn.classList.toggle('on', h.visible===false);
 }
 
 function enterPrintPreview(){
@@ -3149,6 +3338,90 @@ function libDelete(idx){
     renderLibPanel();
   });
 }
+
+// ── Schedule Header ──────────────────────────────────────────────────────────
+(function(){
+  function ensureHdr(){if(!S.hdr)S.hdr={visible:true,title:'',fields:[{label:'CLIENT',value:''},{label:'JOB #',value:''},{label:'DIRECTOR',value:''},{label:'COMPANY',value:''}],notes:'',logoL:'',logoR:''};}
+
+  // Toggle button
+  document.getElementById('hdr-toggle-btn').addEventListener('click',()=>{
+    ensureHdr();
+    S.hdr.visible = S.hdr.visible===false ? true : false;
+    save(); renderScheduleHeader();
+  });
+
+  // Title field
+  const titleEl=document.getElementById('sh-title');
+  if(titleEl){
+    titleEl.addEventListener('blur',()=>{ensureHdr();S.hdr.title=titleEl.textContent.trim();save();});
+    titleEl.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();titleEl.blur();}});
+  }
+
+  // Notes field
+  const notesEl=document.getElementById('sh-notes');
+  if(notesEl){
+    notesEl.addEventListener('blur',()=>{ensureHdr();S.hdr.notes=notesEl.textContent;save();});
+  }
+
+  // Add field button
+  const addFieldBtn=document.getElementById('sh-add-field');
+  if(addFieldBtn){
+    addFieldBtn.addEventListener('click',()=>{
+      ensureHdr();
+      if(!Array.isArray(S.hdr.fields)) S.hdr.fields=[];
+      S.hdr.fields.push({label:'LABEL',value:''});
+      save(); renderHdrFields();
+      setTimeout(()=>{
+        const rows=document.querySelectorAll('#sh-fields-list .sh-field-row');
+        const last=rows[rows.length-1];
+        if(last){const lbl=last.querySelector('.sh-field-lbl');if(lbl){lbl.focus();document.execCommand('selectAll',false,null);}}
+      },40);
+    });
+  }
+
+  // Logo upload helper
+  function setupLogo(side){
+    const zone=document.getElementById('sh-logo-'+side);
+    const fileIn=document.getElementById('sh-logo-'+side+'-file');
+    const delBtn=document.getElementById('sh-logo-'+side+'-del');
+    if(!zone||!fileIn) return; // element may not exist if logo zone was removed
+    const key='logo'+side.toUpperCase();
+    zone.addEventListener('click',e=>{if(e.target===delBtn||e.target===fileIn)return;fileIn.click();});
+    fileIn.addEventListener('change',()=>{
+      const file=fileIn.files[0];if(!file)return;
+      const reader=new FileReader();
+      reader.onload=ev=>{ensureHdr();S.hdr[key]=ev.target.result;save();renderScheduleHeader();};
+      reader.readAsDataURL(file);
+    });
+    if(delBtn) delBtn.addEventListener('click',e=>{
+      e.stopPropagation();ensureHdr();S.hdr[key]='';save();renderScheduleHeader();
+    });
+  }
+  setupLogo('l'); setupLogo('r');
+
+  // Paste image onto hovered logo zone
+  document.addEventListener('paste',e=>{
+    const items=[...(e.clipboardData?.items||[])];
+    const imgItem=items.find(it=>it.type.startsWith('image/'));
+    if(!imgItem) return;
+    const lZone=document.getElementById('sh-logo-l');
+    const rZone=document.getElementById('sh-logo-r');
+    const side=(lZone&&lZone.matches(':hover'))?'l':(rZone&&rZone.matches(':hover'))?'r':null;
+    if(!side) return;
+    e.preventDefault();
+    const file=imgItem.getAsFile();if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{ensureHdr();S.hdr['logo'+side.toUpperCase()]=ev.target.result;save();renderScheduleHeader();};
+    reader.readAsDataURL(file);
+  });
+
+  // Block drag-drop bleed from header into calendar, but allow contenteditable to receive focus
+  document.getElementById('schedule-header').addEventListener('pointerdown',e=>{
+    if(!e.target.isContentEditable && e.target.tagName!=='INPUT' && e.target.tagName!=='BUTTON') {
+      e.stopPropagation();
+    }
+  });
+})();
 
 // Panel open/close
 document.getElementById('lib-btn').addEventListener('click', ()=>{
