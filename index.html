@@ -766,7 +766,13 @@ function _gcalReady(){
   if(!_gcalTokenClient){
     _gcalTokenClient=google.accounts.oauth2.initTokenClient({
       client_id:GCAL_CLIENT_ID,scope:GCAL_SCOPE,
-      callback:(r)=>{if(r.error){if(_gcalCb)_gcalCb(null,r.error);return;}_gcalToken=r.access_token;if(_gcalCb)_gcalCb(_gcalToken,null);},
+      callback:(r)=>{
+        if(r.error){if(_gcalCb)_gcalCb(null,r.error);return;}
+        _gcalToken=r.access_token;
+        if(_gcalCb)_gcalCb(_gcalToken,null);
+        // Refresh event panel calendar dropdown if it's open
+        if(document.getElementById('event-panel')?.classList.contains('open')) populateEpCalSel();
+      },
     });
   }
   return true;
@@ -784,7 +790,14 @@ async function gcalFetch(method,path,body){
   const res=await fetch(GCAL_BASE+path,opts);
   if(res.status===204) return null;
   const data=await res.json();
-  if(!res.ok) throw new Error(data?.error?.message||'HTTP '+res.status);
+  if(!res.ok){
+    // Surface the most specific Google error message available
+    const errs=data?.error?.errors;
+    const detail=errs&&errs.length?errs.map(e=>e.message||e.reason).join('; '):null;
+    const msg=detail||data?.error?.message||'HTTP '+res.status;
+    console.error('gcalFetch error',method,path,res.status,data);
+    throw new Error(msg);
+  }
   return data;
 }
 // Map any hex colour to the nearest Google Calendar colorId using hue
@@ -1988,8 +2001,13 @@ document.getElementById('ep-sync').addEventListener('click',async()=>{
   }
   const dtNext=new Date(dt); dtNext.setDate(dtNext.getDate()+1);
   const dsNext=localDateStr(dtNext);
-  const calId=tm.calId||S.syncCalId||'primary';
-  const colorId=gcalColorId(mag.color);
+  // Resolve calendar: per-event override → schedule default → primary
+  // Also read current ep-cal-sel value in case user changed it without saving
+  const epCalSel=document.getElementById('ep-cal-sel');
+  const selCalId=epCalSel?.value||'';
+  if(selCalId) { S.times[tk]=S.times[tk]||{}; S.times[tk].calId=selCalId; save(); }
+  const calId=(S.times[tk]?.calId)||S.syncCalId||'primary';
+
   const desc=[S.project,tm.notes].filter(Boolean).join('\n\n');
   // Only all-day if BOTH start AND end are absent
   const allDay=!tm.start&&!tm.end;
@@ -1997,23 +2015,28 @@ document.getElementById('ep-sync').addEventListener('click',async()=>{
   // Normalise time strings: strip any trailing seconds so we only append ':00' once
   const startT=(tm.start||'09:00').replace(/:\d\d$/,'');
   const endT=(tm.end||'17:00').replace(/:\d\d$/,'');
+  // Build base event body (no colorId in PATCH to avoid 400 on pre-existing events)
   const evBody={
     summary:mag.label,
     start:allDay?{date:ds}:{dateTime:ds+'T'+startT+':00',timeZone:TZ},
     end:allDay?{date:dsNext}:{dateTime:ds+'T'+endT+':00',timeZone:TZ},
     description:desc||undefined,
     location:tm.location||undefined,
-    colorId,
     conferenceData:meet?{createRequest:{requestId:tk+'-'+Date.now(),conferenceSolutionKey:{type:'hangoutsMeet'}}}:undefined,
   };
-  console.log('ep-sync sending',JSON.stringify(evBody,null,2));
+  // colorId only on POST (create) — PATCH without it leaves existing colour unchanged
+  const colorId=gcalColorId(mag.color);
+  const evBodyCreate={...evBody,colorId};
+  console.log('ep-sync →',calId, JSON.stringify(evBody,null,2));
   showEpStatus('Syncing…',null);
   const calPath='/calendars/'+encodeURIComponent(calId)+'/events';
   const qs=meet?'?conferenceDataVersion=1':'';
   const doCreate=async()=>{
-    const res=await gcalFetch('POST',calPath+qs,evBody);
+    const res=await gcalFetch('POST',calPath+qs,evBodyCreate);
     if(res?.id){
       S.eventIds[tk]=res.id;
+      // Store which calendar this event lives on so future syncs go to the right place
+      S.times[tk]=S.times[tk]||{}; S.times[tk].calId=calId;
       const link=res?.conferenceData?.hangoutLink||null;
       if(link){S.times[tk]=S.times[tk]||{};S.times[tk].meetLink=link;}
       save();
@@ -2024,9 +2047,13 @@ document.getElementById('ep-sync').addEventListener('click',async()=>{
     const ex=S.eventIds[tk];
     if(ex){
       try{
+        // PATCH uses evBody (no colorId) to avoid 400 on pre-existing events
         const res=await gcalFetch('PATCH',calPath+'/'+encodeURIComponent(ex)+qs,evBody);
         const link=res?.conferenceData?.hangoutLink||null;
-        if(link){S.times[tk]=S.times[tk]||{};S.times[tk].meetLink=link;save();}
+        S.times[tk]=S.times[tk]||{};
+        S.times[tk].calId=calId; // persist which calendar holds this event
+        if(link) S.times[tk].meetLink=link;
+        save();
       }catch(e){
         if(/404|410|not found/i.test(e.message)){delete S.eventIds[tk];await doCreate();}
         else throw e;
@@ -2034,10 +2061,12 @@ document.getElementById('ep-sync').addEventListener('click',async()=>{
     } else {
       await doCreate();
     }
-    showEpStatus('✓ Synced to Google Calendar',true);
+    // Show which calendar was targeted so user can verify
+    const calLabel=_calList.find(c=>c.id===calId)?.summary||calId;
+    showEpStatus('✓ Synced → '+calLabel,true);
   }catch(err){
     showEpStatus('Error: '+(err?.message||String(err)),false);
-    console.error('ep-sync error',err,evBody);
+    console.error('ep-sync error',err,'body:',evBody,'calId:',calId);
   }
 });
 
