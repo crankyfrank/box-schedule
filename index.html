@@ -1936,12 +1936,26 @@ function updateLockUI(locked){
     : 'Time is provisional — shown with dashed border';
 }
 
+// Auto-sync debounce: if event already has a Google Calendar ID and user is signed in,
+// push changes automatically 2s after the last field edit.
+let _autoSyncTimer=null;
+function scheduleAutoSync(){
+  if(!_gcalToken) return;
+  const tk=getTk(); if(!tk) return;
+  if(!S.eventIds[tk]) return; // not yet on Google Calendar — don't auto-push
+  clearTimeout(_autoSyncTimer);
+  showEpStatus('Syncing in 2s…',null);
+  _autoSyncTimer=setTimeout(()=>{
+    document.getElementById('ep-sync')?.click();
+  },2000);
+}
+
 function saveEpField(key,val){
   const tk=getTk(); if(!tk) return;
   S.times[tk]=S.times[tk]||{};
   S.times[tk][key]=val;
-  // If no start/end, clear allday flag too
   save(); rCal();
+  scheduleAutoSync();
 }
 
 // All-day toggle
@@ -1957,6 +1971,7 @@ document.getElementById('ep-allday').addEventListener('change',e=>{
     document.getElementById('ep-time-row').style.display='flex';
   }
   save(); rCal();
+  scheduleAutoSync();
 });
 document.getElementById('ep-start').addEventListener('change',e=>{saveEpField('start',e.target.value);});
 document.getElementById('ep-end').addEventListener('change',e=>{saveEpField('end',e.target.value);});
@@ -1971,6 +1986,7 @@ document.getElementById('ep-locked').addEventListener('click',()=>{
   saveEpField('locked',true); updateLockUI(true);
 });
 document.getElementById('ep-close').addEventListener('click',()=>{
+  clearTimeout(_autoSyncTimer);
   document.getElementById('event-panel').classList.remove('open');
   document.getElementById('cal-wrap').classList.remove('ep-open');
   selBar=null;
