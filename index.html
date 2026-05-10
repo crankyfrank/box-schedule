@@ -2028,14 +2028,15 @@ document.getElementById('ep-sync').addEventListener('click',async()=>{
   // Only all-day if BOTH start AND end are absent
   const allDay=!tm.start&&!tm.end;
   const meet=!!(tm.meet);
-  // Normalise time strings: strip any trailing seconds so we only append ':00' once
-  const startT=(tm.start||'09:00').replace(/:\d\d$/,'');
-  const endT=(tm.end||'17:00').replace(/:\d\d$/,'');
+  // Convert HH:MM → HH:MM:SS (Google Calendar requires full RFC 3339 seconds)
+  const toHMS=t=>{if(!t)return null;const p=t.split(':');return p.length===2?t+':00':t;};
+  const startHMS=toHMS(tm.start)||'09:00:00';
+  const endHMS=toHMS(tm.end)||'17:00:00';
   // Build base event body (no colorId in PATCH to avoid 400 on pre-existing events)
   const evBody={
     summary:mag.label,
-    start:allDay?{date:ds}:{dateTime:ds+'T'+startT+':00',timeZone:TZ},
-    end:allDay?{date:dsNext}:{dateTime:ds+'T'+endT+':00',timeZone:TZ},
+    start:allDay?{date:ds}:{dateTime:ds+'T'+startHMS,timeZone:TZ},
+    end:allDay?{date:dsNext}:{dateTime:ds+'T'+endHMS,timeZone:TZ},
     description:desc||undefined,
     location:tm.location||undefined,
     conferenceData:meet?{createRequest:{requestId:tk+'-'+Date.now(),conferenceSolutionKey:{type:'hangoutsMeet'}}}:undefined,
@@ -2273,8 +2274,10 @@ function buildEvents(){
       const desc=[S.project, tm?.notes].filter(Boolean).join('\n\n');
       const loc=tm?.location||undefined;
       const meet=tm?.meet||false;
+      // toHMS: HH:MM → HH:MM:SS (Google requires full seconds in RFC 3339)
+      const toHMS2=t=>t&&t.split(':').length===2?t+':00':t;
       evts.push(tm?.start&&tm?.end
-        ? {key,summary:mag.label,startTime:`${ds}T${tm.start}:00`,endTime:`${ds}T${tm.end}:00`,allDay:false,inv,colorId,desc,loc,meet}
+        ? {key,summary:mag.label,startTime:`${ds}T${toHMS2(tm.start)}`,endTime:`${ds}T${toHMS2(tm.end)}`,allDay:false,inv,colorId,desc,loc,meet}
         : {key,summary:mag.label,startTime:ds,endTime:dsNext,allDay:true,inv,colorId,desc,loc,meet});
     }
   }
