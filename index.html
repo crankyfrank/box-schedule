@@ -2052,6 +2052,11 @@ document.getElementById('ep-sync').addEventListener('click',async()=>{
   const toHMS=t=>{if(!t)return null;const p=t.split(':');return p.length===2?t+':00':t;};
   const startHMS=toHMS(tm.start)||'09:00:00';
   const endHMS=toHMS(tm.end)||'17:00:00';
+  // Validate: end must be after start
+  if(!allDay&&startHMS>=endHMS){
+    showEpStatus('End time must be after start time (currently '+tm.start+' → '+tm.end+')',false);
+    return;
+  }
   // Build base event body (no colorId in PATCH to avoid 400 on pre-existing events)
   const evBody={
     summary:mag.label,
@@ -2309,6 +2314,11 @@ function buildEvents(){
       const endHMS2=toHMS2(tm?.end)||'17:00:00';
       // Guard: skip if date string is somehow invalid
       if(!ds||ds==='Invalid Date') continue;
+      // Guard: end must be after start — skip and flag for user feedback
+      if(!allDay2&&startHMS2>=endHMS2){
+        evts.push({key,summary:mag.label,_invalid:`End time before start (${tm.start} → ${tm.end})`});
+        continue;
+      }
       evts.push(allDay2
         ? {key,summary:mag.label,startTime:ds,endTime:dsNext,allDay:true,inv,colorId,desc,loc,meet}
         : {key,summary:mag.label,startTime:`${ds}T${startHMS2}`,endTime:`${ds}T${endHMS2}`,allDay:false,inv,colorId,desc,loc,meet});
@@ -2373,11 +2383,20 @@ document.getElementById('sp-push').addEventListener('click',async()=>{
   }
   // Show a summary of what we're about to sync
   const labelCounts={};
-  evts.forEach(ev=>{labelCounts[ev.summary]=(labelCounts[ev.summary]||0)+1;});
+  validEvts.forEach(ev=>{labelCounts[ev.summary]=(labelCounts[ev.summary]||0)+1;});
   const summary=Object.entries(labelCounts).map(([k,v])=>v>1?`${k} ×${v}`:k).join(', ');
-  st.textContent=`Syncing ${evts.length} event${evts.length>1?'s':''}: ${summary}…`;
+  st.textContent=`Syncing ${validEvts.length} event${validEvts.length>1?'s':''}: ${summary}…`;
+  // Separate valid events from pre-flagged invalid ones (e.g. end before start)
+  const invalidEvts=evts.filter(ev=>ev._invalid);
+  const validEvts=evts.filter(ev=>!ev._invalid);
+  if(invalidEvts.length){
+    const names=[...new Set(invalidEvts.map(ev=>ev.summary))].join(', ');
+    st.style.color='#dc2626';
+    st.textContent=`Skipped ${invalidEvts.length} event${invalidEvts.length>1?'s':''} with invalid times (end before start): ${names}. Fix the times in the event panel first.`;
+    if(validEvts.length===0) return;
+  }
   let ok=0, fail=0, lastErr='';
-  for(const ev of evts){
+  for(const ev of validEvts){
     try{
       const ex=S.eventIds[ev.key];
       const calPath='/calendars/'+encodeURIComponent(S.syncCalId)+'/events';
@@ -2418,7 +2437,7 @@ document.getElementById('sp-push').addEventListener('click',async()=>{
         captureMeetLink(res,ev.key);
       }
       ok++;
-      st.textContent=`Syncing… ${ok}/${evts.length}`;
+      st.textContent=`Syncing… ${ok}/${validEvts.length}`;
     }catch(err){
       fail++;
       lastErr=err?.message||String(err);
@@ -2426,12 +2445,13 @@ document.getElementById('sp-push').addEventListener('click',async()=>{
     }
   }
   save();
+  const skipNote=invalidEvts.length?` · ${invalidEvts.length} skipped (fix times)`:'';
   if(fail===0){
-    st.style.color='#16a34a';
-    st.textContent=`✓ ${ok} event${ok>1?'s':''} synced to Google Calendar`;
+    st.style.color=invalidEvts.length?'#d97706':'#16a34a';
+    st.textContent=`✓ ${ok} event${ok>1?'s':''} synced${skipNote}`;
   } else {
     st.style.color='#dc2626';
-    st.textContent=`${ok} synced · ${fail} failed — ${lastErr}`;
+    st.textContent=`${ok} synced · ${fail} failed — ${lastErr}${skipNote}`;
   }
 });
 document.getElementById('sp-del').addEventListener('click',async()=>{
