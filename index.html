@@ -167,6 +167,39 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg)
 .bar:hover{filter:brightness(.88)}
 /* .bar.soft — provisional times, no visual clutter */
 .bar.grabbing{opacity:.25;cursor:grabbing}
+/* ── Lib panel tabs ── */
+#lib-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
+.lib-tab{flex:1;padding:8px 6px;font-size:11px;font-weight:500;border:none;background:none;cursor:pointer;color:var(--text-2);border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;font-family:inherit}
+.lib-tab:hover{color:var(--text-1)}
+.lib-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+/* Label tree inside lib panel */
+.lm-group{margin-bottom:4px}
+.lm-grp-hdr{display:flex;align-items:center;gap:6px;padding:6px 10px 4px;position:sticky;top:0;background:var(--surface);z-index:2}
+.lm-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0;cursor:pointer;border:1px solid rgba(0,0,0,.12);transition:transform .1s}
+.lm-dot:hover{transform:scale(1.25)}
+.lm-grp-name{font-size:11px;font-weight:700;color:var(--text-1);flex:1;outline:none;padding:2px 3px;border-radius:3px;min-width:0;cursor:text;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lm-grp-name:focus{background:var(--surface-2);outline:1.5px solid var(--accent-border);overflow:visible;white-space:normal}
+.lm-grp-add{font-size:10px;color:var(--text-3);cursor:pointer;padding:2px 6px;border:1px solid var(--border);background:var(--surface-2);border-radius:var(--r-sm);white-space:nowrap;transition:all .12s;font-family:inherit}
+.lm-grp-add:hover{border-color:var(--accent-border);color:var(--accent);background:#eff6ff}
+.lm-mag-row,.lm-sub-row{display:flex;align-items:center;gap:5px;padding:4px 10px 4px 22px;border-radius:var(--r-sm);margin:1px 4px}
+.lm-sub-row{padding-left:34px}
+.lm-mag-row:hover,.lm-sub-row:hover{background:var(--surface-2)}
+.lm-mag-lbl,.lm-sub-lbl{font-size:11px;font-weight:400;flex:1;outline:none;padding:1px 3px;border-radius:3px;min-width:0;cursor:text;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lm-sub-lbl{font-size:10px}
+.lm-mag-lbl:focus,.lm-sub-lbl:focus{background:var(--surface-2);outline:1.5px solid var(--accent-border);overflow:visible;white-space:normal}
+.lm-act{display:flex;gap:2px;align-items:center;flex-shrink:0;opacity:0;transition:opacity .1s}
+.lm-mag-row:hover .lm-act,.lm-sub-row:hover .lm-act,.lm-mag-row:focus-within .lm-act,.lm-sub-row:focus-within .lm-act{opacity:1}
+.lm-btn{font-size:10px;color:var(--text-3);cursor:pointer;padding:2px 5px;border:none;background:none;border-radius:3px;line-height:1.4;font-family:inherit;white-space:nowrap}
+.lm-btn:hover{background:var(--surface-2);color:var(--text-1)}
+.lm-btn.danger:hover{color:var(--danger);background:#fef2f2}
+.lm-btn.addsub:hover{color:#16a34a;background:#f0fdf4}
+.lm-add-row{padding:3px 10px 3px 22px;font-size:10px;color:var(--text-3);cursor:pointer;border-radius:var(--r-sm);margin:0 4px 6px;transition:color .12s}
+.lm-add-row:hover{color:var(--accent)}
+.lm-sep{height:1px;background:var(--border);margin:8px 10px 4px}
+.lm-newgrp{margin:6px 10px 10px;padding:7px 10px;border:1.5px dashed var(--border);border-radius:var(--r-md);font-size:11px;color:var(--text-3);text-align:center;cursor:pointer;transition:all .15s;font-family:inherit;background:none}
+.lm-newgrp:hover{border-color:var(--accent);color:var(--accent);background:#eff6ff}
+.lm-delgrp{margin:0 10px 10px;padding:6px 10px;border:1.5px dashed #fecaca;border-radius:var(--r-md);font-size:10px;color:#dc2626;text-align:center;cursor:pointer;transition:all .15s;font-family:inherit;background:none}
+.lm-delgrp:hover{background:#fef2f2}
 /* Multi-select highlight */
 .bar.selected{outline:2px dashed #fff;outline-offset:-2px;box-shadow:0 0 0 2px var(--accent),var(--shadow-sm);z-index:6;cursor:grab}
 .bar.selected:hover{filter:brightness(.95)}
@@ -176,7 +209,7 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg)
 #sel-mode-btn{display:flex;align-items:center;gap:5px}
 #sel-mode-btn.active{background:#ede9fe!important;border-color:#8b5cf6!important;color:#6d28d9!important;font-weight:600}
 /* Cursor hint when select mode is active */
-body.select-mode #cal .dcell{cursor:crosshair}
+body.select-mode #cal .dcell{cursor:default}
 .blabel{font-size:9px;font-weight:700;color:inherit;opacity:.95;padding:0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;pointer-events:none;letter-spacing:.1px}
 .btime{font-size:8px;color:inherit;opacity:.75;padding-right:4px;white-space:nowrap;flex-shrink:0;pointer-events:none}
 
@@ -510,12 +543,27 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
     <button class="mdbtn" id="hdr-toggle-btn" title="Show / hide schedule info header" style="padding:5px 7px">ℹ</button>
     <div class="tb-sep"></div>
     <input type="date" id="date-input" title="Start date">
-    <button id="prepend-week-btn" class="mdbtn" style="padding:4px 7px;font-size:11px" title="Insert a blank week at the start of the schedule — all existing events shift down">↑W</button>
-    <input type="number" id="weeks-input" value="13" min="1" max="52" title="Number of weeks (append weeks at end)">
+    <button id="prepend-week-btn" class="mdbtn" style="padding:4px 7px;font-size:11px" title="Insert a blank week at the start — all events shift down">↑W</button>
+    <input type="number" id="weeks-input" value="13" min="1" max="52" title="Total weeks in schedule">
+    <button id="append-week-btn" class="mdbtn" style="padding:4px 7px;font-size:11px" title="Add a blank week at the end of the schedule">W↓</button>
     <div class="tb-sep"></div>
     <button id="sel-mode-btn" class="mdbtn" style="background:#fafaf8;padding:5px 8px;font-size:11px" title="Select mode — drag to select events, then drag the group to move them (shortcut: Q)">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><path d="M5 3l14 9-7 1-3 7z"/></svg>Select</button>
-    <button id="lib-btn" class="mdbtn" style="background:#fafaf8;padding:5px 7px" title="Magnet Library">📚</button>
+    <div style="position:relative">
+      <button id="kbd-btn" class="mdbtn" style="background:#fafaf8;padding:5px 7px;font-size:11px;color:var(--text-3)" title="Keyboard shortcuts">⌨</button>
+      <div id="kbd-menu" style="display:none;position:absolute;left:0;top:34px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:300;width:240px;padding:12px 14px">
+        <div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Keyboard shortcuts</div>
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+          <tr><td style="padding:3px 0;color:var(--text-2)">Select mode</td><td style="text-align:right"><kbd style="background:var(--surface-2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px">Q</kbd></td></tr>
+          <tr><td style="padding:3px 0;color:var(--text-2)">Erase mode</td><td style="text-align:right"><kbd style="background:var(--surface-2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px">E</kbd></td></tr>
+          <tr><td style="padding:3px 0;color:var(--text-2)">Clear selection / cancel</td><td style="text-align:right"><kbd style="background:var(--surface-2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px">Esc</kbd></td></tr>
+          <tr><td style="padding:3px 0;color:var(--text-2)">Copy event while dragging</td><td style="text-align:right"><kbd style="background:var(--surface-2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px">Alt</kbd> + drag</td></tr>
+          <tr><td style="padding:3px 0;color:var(--text-2)">Add to selection</td><td style="text-align:right"><kbd style="background:var(--surface-2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px">Shift</kbd> + click</td></tr>
+          <tr><td style="padding:3px 0;color:var(--text-2)">Confirm delete dialog</td><td style="text-align:right"><kbd style="background:var(--surface-2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px">Enter</kbd></td></tr>
+        </table>
+      </div>
+    </div>
+    <button id="lib-btn" class="mdbtn" style="background:#fafaf8;padding:5px 8px;font-size:11px" title="Magnet Library">📚 Library</button>
     <div style="position:relative">
       <button class="mdbtn" id="holiday-btn" style="background:#fafaf8;padding:5px 7px" title="Add public holidays">🗓</button>
       <div id="holiday-menu" style="display:none;position:absolute;right:0;top:32px;background:#fff;border:1px solid #e0e0da;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:300;width:220px;padding:12px 14px">
@@ -575,8 +623,11 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
         <div class="sh-field-row" style="margin-bottom:3px">
           <span class="sh-field-val sh-title-val" id="sh-title" contenteditable="true" data-placeholder="Schedule title" spellcheck="false"></span>
         </div>
-        <div id="sh-fields-list"></div>
-        <button class="sh-add-field" id="sh-add-field">+ Add field</button>
+        <button id="sh-fields-toggle" style="background:none;border:none;padding:0;font-size:10px;color:var(--text-3);cursor:pointer;text-align:left;margin-bottom:2px;display:none">+ Add project info</button>
+        <div id="sh-fields-body">
+          <div id="sh-fields-list"></div>
+          <button class="sh-add-field" id="sh-add-field">+ Add field</button>
+        </div>
         <div class="sh-hdr-meta" id="sh-meta" style="display:none"></div>
       </div>
       <div class="sh-notes">
@@ -732,22 +783,31 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
 
 <!-- ── Magnet Library Panel ── -->
 <div id="lib-panel">
-  <div class="sphdr"><h2>📚 Magnet Library</h2><span class="spclose" id="lib-close">✕</span></div>
+  <div class="sphdr"><h2>📚 Magnets</h2><span class="spclose" id="lib-close">✕</span></div>
+  <div id="lib-tabs">
+    <button class="lib-tab active" data-tab="labels">Labels</button>
+    <button class="lib-tab" data-tab="presets">Presets</button>
+  </div>
   <div id="lib-scroll">
-    <div class="spsec" style="padding-bottom:0">
-      <label>Save current magnets</label>
-      <div style="font-size:10px;color:#aaa;margin-bottom:8px">Save your groups &amp; labels as a named set you can load into any schedule</div>
-      <input id="lib-save-name" class="spinp" placeholder="Set name (e.g. Film Crew, Acro)…" style="width:100%;margin-bottom:6px">
-      <button id="lib-save-btn" class="spbtn" style="width:100%;margin:0">Save</button>
-      <div style="margin-top:8px;font-size:10px;color:#aaa">
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:10px;font-weight:400">
-          <input type="checkbox" id="lib-save-all" checked style="accent-color:var(--accent)"> Save all groups
-        </label>
+    <!-- Labels tab: live tree of current schedule magnets -->
+    <div id="lib-labels-tab"></div>
+    <!-- Presets tab: save/load named magnet sets -->
+    <div id="lib-presets-tab" style="display:none">
+      <div class="spsec" style="padding-bottom:0">
+        <label>Save as preset</label>
+        <div style="font-size:10px;color:#aaa;margin-bottom:8px">Save your current labels as a named set to reuse in any schedule</div>
+        <input id="lib-save-name" class="spinp" placeholder="e.g. Film Crew, TV Drama…" style="width:100%;margin-bottom:6px">
+        <button id="lib-save-btn" class="spbtn" style="width:100%;margin:0">Save preset</button>
+        <div style="margin-top:8px;font-size:10px;color:#aaa">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:10px;font-weight:400">
+            <input type="checkbox" id="lib-save-all" checked style="accent-color:var(--accent)"> Save all groups
+          </label>
+        </div>
       </div>
-    </div>
-    <div class="spsec" style="padding-top:10px">
-      <div id="lib-list"></div>
-      <div id="lib-empty" style="font-size:11px;color:#bbb;text-align:center;padding:20px 0;display:none">No sets yet</div>
+      <div class="spsec" style="padding-top:10px">
+        <div id="lib-list"></div>
+        <div id="lib-empty" style="font-size:11px;color:#bbb;text-align:center;padding:20px 0;display:none">No presets yet</div>
+      </div>
     </div>
   </div>
 </div>
@@ -1041,6 +1101,14 @@ function prevMonday(){
   // Use local date parts to avoid UTC offset shifting the date
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
+// Snap any date string to the Monday on or before it
+function snapMonday(dateStr){
+  const d=new Date(dateStr+'T00:00:00');
+  const day=d.getDay();
+  const diff=day===0?6:day-1;
+  d.setDate(d.getDate()-diff);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
 
 function defaultState(name){
   const grps=JSON.parse(JSON.stringify(DG));
@@ -1052,12 +1120,11 @@ function defaultState(name){
     activeMag:null,eraseMode:false,
     syncCalId:'',syncInv:{},syncGlobal:'',syncSel:[],
     holCountry:'AU',holState:'AU-VIC',
-    hdr:{visible:true,title:'',fields:[
-      {label:'CLIENT',value:''},{label:'JOB #',value:''},
-      {label:'DIRECTOR',value:''},{label:'COMPANY',value:''},
-    ],notes:'',logoL:'',logoR:''},
+    hdr:{visible:true,title:'',fields:[],fieldsExpanded:false,notes:'',logoL:'',logoR:''},
   };
 }
+
+let IS_FIRST_RUN=false;
 
 (function initSchedules(){
   loadSchIndex();
@@ -1065,8 +1132,9 @@ function defaultState(name){
     // Migrate old single-schedule data
     const old=localStorage.getItem('bxs5');
     const id='sch_'+Date.now();
-    let name='Schedule 1';
+    let name='My Schedule';
     if(old){try{name=JSON.parse(old).project||name;}catch(e){} localStorage.setItem(schKey(id),old);}
+    else IS_FIRST_RUN=true; // brand new user — no migration data
     schIndex=[{id,name,updatedAt:new Date().toISOString()}];
     saveSchIndex(); currentSchId=id;
   } else {
@@ -1087,21 +1155,15 @@ function defaultState(name){
     if(!g.color) g.color=deriveGroupBase(g);
   });
   // Migrate: ensure hdr exists
-  if(!data.hdr) data.hdr={visible:true,title:'',fields:[
-    {label:'CLIENT',value:''},{label:'JOB #',value:''},
-    {label:'DIRECTOR',value:''},{label:'COMPANY',value:''},
-  ],notes:'',logoL:'',logoR:''};
+  if(!data.hdr) data.hdr={visible:true,title:'',fields:[],fieldsExpanded:false,notes:'',logoL:'',logoR:''};
   // Migrate: convert old flat fields (client/job/role/company) to fields array
   if(!Array.isArray(data.hdr.fields)){
     const h=data.hdr;
     data.hdr.fields=[
       {label:'CLIENT',value:h.client||''},{label:'JOB #',value:h.job||''},
-      {label:'DIRECTOR',value:h.role||''},{label:'COMPANY',value:h.company||''},
+      {label:'COMPANY',value:h.company||''},
     ].filter(f=>f.value); // drop empty ones from migration
-    if(!data.hdr.fields.length) data.hdr.fields=[
-      {label:'CLIENT',value:''},{label:'JOB #',value:''},
-      {label:'DIRECTOR',value:''},{label:'COMPANY',value:''},
-    ];
+    if(!data.hdr.fields.length) data.hdr.fields=[];
   }
   S=data;
 })();
@@ -1337,10 +1399,12 @@ document.addEventListener('pointerdown', e=>{
             groupStartDi:+bar.dataset.di,magId:null,barSrcDi:null,barMagId:null,lastPaintDi:-1,altCopy:false};
       }
     } else {
-      // Drag on empty space → rubber-band
+      // Drag on empty space → per-day sweep selection
       if(!e.shiftKey) clearSelection();
+      const startCell=e.target?.closest('.dcell');
+      const startDi=startCell?+startCell.dataset.di:-1;
       pd={type:'select-rect',startX:e.clientX,startY:e.clientY,moved:false,
-          magId:null,barSrcDi:null,barMagId:null,lastPaintDi:-1,altCopy:false,groupStartDi:-1};
+          magId:null,barSrcDi:null,barMagId:null,lastPaintDi:-1,altCopy:false,groupStartDi:startDi};
     }
     return;
   }
@@ -1449,17 +1513,18 @@ document.addEventListener('pointermove', e=>{
       }
     }
   } else if(pd.type==='select-rect'){
-    const x1=Math.min(pd.startX,e.clientX), y1=Math.min(pd.startY,e.clientY);
-    const x2=Math.max(pd.startX,e.clientX), y2=Math.max(pd.startY,e.clientY);
-    selRect.style.cssText=`display:block;left:${x1}px;top:${y1}px;width:${x2-x1}px;height:${y2-y1}px`;
-    // Select all bars whose centres fall within the rect
-    selectedCells.clear();
-    document.querySelectorAll('.bar').forEach(b=>{
-      const r=b.getBoundingClientRect();
-      const cx=(r.left+r.right)/2, cy=(r.top+r.bottom)/2;
-      if(cx>=x1&&cx<=x2&&cy>=y1&&cy<=y2) selectedCells.add(b.dataset.di+'-'+b.dataset.magid);
-    });
-    updateSelectionUI();
+    // Per-day sweep: select all events in every column the drag passes over
+    const curCell=document.elementFromPoint(e.clientX,e.clientY)?.closest('.dcell');
+    const curDi=curCell?+curCell.dataset.di:pd.groupStartDi;
+    if(curDi>=0&&pd.groupStartDi>=0){
+      const lo=Math.min(pd.groupStartDi,curDi), hi=Math.max(pd.groupStartDi,curDi);
+      selectedCells.clear();
+      document.querySelectorAll('.bar').forEach(b=>{
+        const di=+b.dataset.di;
+        if(di>=lo&&di<=hi) selectedCells.add(b.dataset.di+'-'+b.dataset.magid);
+      });
+      updateSelectionUI();
+    }
   } else if(pd.type==='group-move'){
     const count=selectedCells.size;
     updateGhost(`↔ Move ${count} event${count!==1?'s':''}`, '#6366f1', e.clientX, e.clientY);
@@ -1538,7 +1603,6 @@ document.addEventListener('pointerup', e=>{
   } else if(pd.type==='paint'){
     save(); rCal();
   } else if(pd.type==='select-rect'){
-    selRect.style.display='none';
     updateSelectionUI();
     if(selectedCells.size>0){
       const count=selectedCells.size;
@@ -1919,6 +1983,7 @@ function applyColor(c){
     mag.color=c; save(); rSidebar(); rCal();
   }
   closeCpop();
+  refreshLibIfOpen();
 }
 
 function closeCpop(){
@@ -2364,7 +2429,8 @@ document.getElementById('proj-name').addEventListener('blur',e=>{
 const dateInp=document.getElementById('date-input');
 dateInp.value=S.startDate;
 dateInp.addEventListener('change',async e=>{
-  const newDate=e.target.value;
+  const newDate=snapMonday(e.target.value);
+  dateInp.value=newDate; // reflect snap back to picker
   const oldDate=S.startDate;
   if(!oldDate||oldDate===newDate){S.startDate=newDate;save();rCal();return;}
   // Compute delta in calendar days
@@ -2396,6 +2462,13 @@ dateInp.addEventListener('change',async e=>{
 const weeksInp=document.getElementById('weeks-input');
 weeksInp.value=S.weeks;
 weeksInp.addEventListener('change',e=>{S.weeks=Math.max(1,Math.min(52,parseInt(e.target.value)||13));save();rCal();});
+
+// Append week: add a blank week at the end
+document.getElementById('append-week-btn').addEventListener('click',()=>{
+  S.weeks=Math.min(52,S.weeks+1);
+  document.getElementById('weeks-input').value=S.weeks;
+  save();rCal();
+});
 
 // Prepend week: add a blank week at the top, push all events down by 7 days
 document.getElementById('prepend-week-btn').addEventListener('click',()=>{
@@ -2874,6 +2947,22 @@ document.getElementById('sp-pull').addEventListener('click',async()=>{
 
 // ── Public Holidays (Nager.Date public API) ───────────────────
 (function(){
+  // Keyboard shortcuts popover
+  (()=>{
+    const kbdBtn=document.getElementById('kbd-btn');
+    const kbdMenu=document.getElementById('kbd-menu');
+    if(kbdBtn&&kbdMenu){
+      kbdBtn.addEventListener('click',e=>{
+        e.stopPropagation();
+        kbdMenu.style.display=kbdMenu.style.display==='none'?'block':'none';
+      });
+      document.addEventListener('pointerdown',e=>{
+        if(!e.target.closest('#kbd-btn')&&!e.target.closest('#kbd-menu'))
+          kbdMenu.style.display='none';
+      },{capture:true,passive:true});
+    }
+  })();
+
   const btn=document.getElementById('holiday-btn');
   const menu=document.getElementById('holiday-menu');
   const countryInp=document.getElementById('hol-country');
@@ -3408,10 +3497,19 @@ function populatePrintHeader(){
 function renderHdrFields(){
   const container=document.getElementById('sh-fields-list');
   if(!container) return;
-  // Don't re-render if user is actively editing inside
   if(container.contains(document.activeElement)) return;
   const fields=S.hdr?.fields||[];
+  const expanded=S.hdr?.fieldsExpanded;
+  // Show/hide the fields body and toggle button
+  const body=document.getElementById('sh-fields-body');
+  const toggle=document.getElementById('sh-fields-toggle');
+  if(body) body.style.display=expanded?'':'none';
+  if(toggle){
+    toggle.style.display=expanded?'none':'';
+    toggle.onclick=()=>{S.hdr.fieldsExpanded=true;save();renderHdrFields();};
+  }
   container.innerHTML='';
+  if(!expanded) return;
   fields.forEach((f,i)=>{
     const row=document.createElement('div');
     row.className='sh-field-row';
@@ -3428,19 +3526,12 @@ function renderHdrFields(){
     val.setAttribute('spellcheck','false');
     val.setAttribute('data-placeholder',f.label||'Value');
     val.textContent=f.value||'';
-    // Apply visual hierarchy: secondary fields are smaller/muted
-    const isSecondary=['JOB #','DIRECTOR'].includes((f.label||'').toUpperCase());
-    if(isSecondary){
-      val.style.fontSize='11px'; val.style.color='var(--text-2)'; val.style.fontWeight='400';
-    } else {
-      val.style.fontSize='12px'; val.style.fontWeight='600';
-    }
+    val.style.fontSize='12px'; val.style.fontWeight='600';
     const del=document.createElement('button');
     del.className='sh-field-row-del';
     del.textContent='✕';
     del.title='Remove field';
     del.dataset.idx=i;
-    // Label blur — save label text
     lbl.addEventListener('blur',()=>{
       const txt=lbl.textContent.trim();
       if(S.hdr.fields[i]) S.hdr.fields[i].label=txt;
@@ -3448,15 +3539,14 @@ function renderHdrFields(){
       save();
     });
     lbl.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();lbl.blur();}});
-    // Value blur — save value text
     val.addEventListener('blur',()=>{
       if(S.hdr.fields[i]) S.hdr.fields[i].value=val.textContent.trim();
       save();
     });
     val.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();val.blur();}});
-    // Delete row
     del.addEventListener('click',()=>{
       S.hdr.fields.splice(i,1);
+      if(!S.hdr.fields.length) S.hdr.fieldsExpanded=false;
       save(); renderHdrFields();
     });
     row.appendChild(lbl);
@@ -3466,7 +3556,12 @@ function renderHdrFields(){
   });
 }
 
-function ensureHdr(){if(!S.hdr)S.hdr={visible:true,title:'',fields:[{label:'CLIENT',value:''},{label:'JOB #',value:''},{label:'DIRECTOR',value:''},{label:'COMPANY',value:''}],notes:'',logoL:'',logoR:''};}
+function ensureHdr(){
+  if(!S.hdr)S.hdr={visible:true,title:'',fields:[],fieldsExpanded:false,notes:'',logoL:'',logoR:''};
+  if(typeof S.hdr.fieldsExpanded==='undefined') S.hdr.fieldsExpanded=!!(S.hdr.fields||[]).some(f=>f.value);
+  // Remove DIRECTOR from the fields array (people can re-add if they want)
+  if(Array.isArray(S.hdr.fields)) S.hdr.fields=S.hdr.fields.filter(f=>(f.label||'').toUpperCase()!=='DIRECTOR');
+}
 
 function renderScheduleHeader(){
   ensureHdr();
@@ -3856,23 +3951,234 @@ function libSectionHdr(text, first){
   return d;
 }
 
-function renderLibPanel(){
-  const userSets = loadMagLib();
-  const list = document.getElementById('lib-list');
-  const empty = document.getElementById('lib-empty');
-  list.innerHTML = '';
-  const hasBuiltin = BUILTIN_LIBS.length > 0;
-  const hasUser = userSets.length > 0;
-  if(!hasBuiltin && !hasUser){ empty.style.display='block'; return; }
-  empty.style.display = 'none';
+// ── Lib panel tab switching ───────────────────────────────────
+let _libActiveTab='labels';
+function libSwitchTab(tab){
+  _libActiveTab=tab;
+  document.querySelectorAll('.lib-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+  document.getElementById('lib-labels-tab').style.display=tab==='labels'?'':'none';
+  document.getElementById('lib-presets-tab').style.display=tab==='presets'?'':'none';
+  if(tab==='labels') renderLibLabelsTab();
+  else renderLibPresetsTab();
+}
+document.querySelectorAll('.lib-tab').forEach(b=>{
+  b.addEventListener('click',()=>libSwitchTab(b.dataset.tab));
+});
+
+// Refresh labels tab if lib panel is open (called after color changes etc.)
+function refreshLibIfOpen(){
+  const lp=document.getElementById('lib-panel');
+  if(lp.classList.contains('open')&&_libActiveTab==='labels') renderLibLabelsTab();
+}
+
+// Helper: text node safe from XSS
+function txt(str){ const d=document.createTextNode(str||''); return d; }
+
+// ── Labels tab: live tree of current schedule magnets ─────────
+function renderLibLabelsTab(){
+  const tab=document.getElementById('lib-labels-tab');
+  if(!tab) return;
+  tab.innerHTML='';
+
+  (S.groups||[]).forEach(g=>{
+    const grpEl=document.createElement('div');
+    grpEl.className='lm-group';
+
+    // ── Group header ──────────────────────────────────────────
+    const hdr=document.createElement('div');
+    hdr.className='lm-grp-hdr';
+
+    const dot=document.createElement('div');
+    dot.className='lm-dot';
+    dot.style.background=g.color||'#888';
+    dot.title='Change category colour';
+    dot.addEventListener('click',e=>{ e.stopPropagation(); pickGroupColor(g.id,dot); });
+
+    const nameSp=document.createElement('span');
+    nameSp.className='lm-grp-name';
+    nameSp.contentEditable='plaintext-only';
+    nameSp.spellcheck=false;
+    nameSp.title='Click to rename';
+    nameSp.appendChild(txt(g.name));
+    nameSp.addEventListener('keydown',e=>{
+      if(e.key==='Enter'){e.preventDefault();nameSp.blur();}
+      if(e.key==='Escape'){nameSp.textContent=g.name;nameSp.blur();}
+    });
+    nameSp.addEventListener('blur',()=>{
+      const v=nameSp.textContent.trim();
+      if(v&&v!==g.name){g.name=v;save();rSidebar();}
+      else nameSp.textContent=g.name;
+    });
+
+    const addBtn=document.createElement('button');
+    addBtn.className='lm-grp-add';
+    addBtn.appendChild(txt('+ Label'));
+    addBtn.addEventListener('click',()=>addMag(g.id).then(()=>renderLibLabelsTab()));
+
+    hdr.appendChild(dot); hdr.appendChild(nameSp); hdr.appendChild(addBtn);
+    grpEl.appendChild(hdr);
+
+    // ── Magnets in this group ─────────────────────────────────
+    (g.magnets||[]).forEach(m=>{
+      // Magnet row
+      const mRow=document.createElement('div');
+      mRow.className='lm-mag-row';
+
+      const mDot=document.createElement('div');
+      mDot.className='lm-dot';
+      mDot.style.background=m.color||'#aaa';
+      mDot.title='Change colour';
+      mDot.addEventListener('click',e=>{ e.stopPropagation(); pickColor(m.id,mDot); });
+
+      const mLbl=document.createElement('span');
+      mLbl.className='lm-mag-lbl';
+      mLbl.contentEditable='plaintext-only';
+      mLbl.spellcheck=false;
+      mLbl.title='Click to rename';
+      mLbl.appendChild(txt(m.label));
+      mLbl.addEventListener('keydown',e=>{
+        if(e.key==='Enter'){e.preventDefault();mLbl.blur();}
+        if(e.key==='Escape'){mLbl.textContent=m.label;mLbl.blur();}
+      });
+      mLbl.addEventListener('blur',()=>{
+        const v=mLbl.textContent.trim();
+        if(v&&v!==m.label){m.label=v;save();rSidebar();rCal();}
+        else mLbl.textContent=m.label;
+      });
+
+      const mAct=document.createElement('div');
+      mAct.className='lm-act';
+
+      const subBtn=document.createElement('button');
+      subBtn.className='lm-btn addsub';
+      subBtn.title='Add sub-label';
+      subBtn.appendChild(txt('+sub'));
+      subBtn.addEventListener('click',()=>addSubMag(m.id).then(()=>renderLibLabelsTab()));
+
+      const delBtn=document.createElement('button');
+      delBtn.className='lm-btn danger';
+      delBtn.title='Delete label and its calendar entries';
+      delBtn.appendChild(txt('×'));
+      delBtn.addEventListener('click',()=>delMag(g.id,m.id).then(()=>renderLibLabelsTab()));
+
+      mAct.appendChild(subBtn); mAct.appendChild(delBtn);
+      mRow.appendChild(mDot); mRow.appendChild(mLbl); mRow.appendChild(mAct);
+      grpEl.appendChild(mRow);
+
+      // Sub-label rows
+      (m.subs||[]).forEach(sub=>{
+        const sRow=document.createElement('div');
+        sRow.className='lm-sub-row';
+
+        const sDot=document.createElement('div');
+        sDot.className='lm-dot';
+        sDot.style.background=sub.color||'#ccc';
+        sDot.title='Change colour';
+        sDot.addEventListener('click',e=>{ e.stopPropagation(); pickColor(sub.id,sDot); });
+
+        const sLbl=document.createElement('span');
+        sLbl.className='lm-sub-lbl';
+        sLbl.contentEditable='plaintext-only';
+        sLbl.spellcheck=false;
+        sLbl.title='Click to rename';
+        sLbl.appendChild(txt(sub.label));
+        sLbl.addEventListener('keydown',e=>{
+          if(e.key==='Enter'){e.preventDefault();sLbl.blur();}
+          if(e.key==='Escape'){sLbl.textContent=sub.label;sLbl.blur();}
+        });
+        sLbl.addEventListener('blur',()=>{
+          const v=sLbl.textContent.trim();
+          if(v&&v!==sub.label){sub.label=v;save();rSidebar();rCal();}
+          else sLbl.textContent=sub.label;
+        });
+
+        const sAct=document.createElement('div');
+        sAct.className='lm-act';
+        const sDelBtn=document.createElement('button');
+        sDelBtn.className='lm-btn danger';
+        sDelBtn.title='Delete sub-label';
+        sDelBtn.appendChild(txt('×'));
+        sDelBtn.addEventListener('click',()=>delMag(g.id,sub.id).then(()=>renderLibLabelsTab()));
+        sAct.appendChild(sDelBtn);
+
+        sRow.appendChild(sDot); sRow.appendChild(sLbl); sRow.appendChild(sAct);
+        grpEl.appendChild(sRow);
+      });
+
+      // "+ Add sub-label" always-visible row under each magnet
+      const addSubRow=document.createElement('div');
+      addSubRow.className='lm-add-row';
+      addSubRow.appendChild(txt('↳ + Add sub-label'));
+      addSubRow.addEventListener('click',()=>addSubMag(m.id).then(()=>renderLibLabelsTab()));
+      grpEl.appendChild(addSubRow);
+    });
+
+    // Delete group button
+    const delGrpBtn=document.createElement('button');
+    delGrpBtn.className='lm-delgrp';
+    delGrpBtn.appendChild(txt('🗑 Delete category'));
+    delGrpBtn.addEventListener('click',async()=>{
+      const mags=g.magnets||[];
+      const msg=mags.length
+        ?`Delete "${g.name}" and its ${mags.length} label${mags.length!==1?'s':''}? All calendar entries will be removed.`
+        :`Delete the "${g.name}" category?`;
+      if(!await showConfirm(msg)) return;
+      // Clean all magnet data
+      mags.forEach(m=>{
+        (m.subs||[]).forEach(s=>cleanMagData(s.id));
+        cleanMagData(m.id);
+      });
+      S.groups=S.groups.filter(x=>x.id!==g.id);
+      save();rSidebar();rCal();
+      renderLibLabelsTab();
+    });
+    grpEl.appendChild(delGrpBtn);
+
+    const sep=document.createElement('div');
+    sep.className='lm-sep';
+    grpEl.appendChild(sep);
+
+    tab.appendChild(grpEl);
+  });
+
+  // "+ New category" button
+  const newGrpBtn=document.createElement('button');
+  newGrpBtn.className='lm-newgrp';
+  newGrpBtn.appendChild(txt('+ New category'));
+  newGrpBtn.addEventListener('click',async()=>{
+    const nm=await showPrompt('Category name','New Category');
+    if(!nm) return;
+    const id='grp-'+Date.now();
+    S.groups.push({id,name:nm,color:'#6366f1',open:true,magnets:[]});
+    save();rSidebar();
+    renderLibLabelsTab();
+  });
+  tab.appendChild(newGrpBtn);
+}
+
+// ── Presets tab (save/load named magnet sets) ─────────────────
+function renderLibPresetsTab(){
+  const userSets=loadMagLib();
+  const list=document.getElementById('lib-list');
+  const empty=document.getElementById('lib-empty');
+  list.innerHTML='';
+  const hasBuiltin=BUILTIN_LIBS.length>0;
+  const hasUser=userSets.length>0;
+  if(!hasBuiltin&&!hasUser){empty.style.display='block';return;}
+  empty.style.display='none';
   if(hasBuiltin){
-    list.appendChild(libSectionHdr('Built-in', true));
-    BUILTIN_LIBS.forEach((set, idx)=> list.appendChild(makeLibCard(set, idx, true)));
+    list.appendChild(libSectionHdr('Built-in',true));
+    BUILTIN_LIBS.forEach((set,idx)=>list.appendChild(makeLibCard(set,idx,true)));
   }
   if(hasUser){
-    list.appendChild(libSectionHdr('Your saved sets', !hasBuiltin));
-    userSets.forEach((set, idx)=> list.appendChild(makeLibCard(set, idx, false)));
+    list.appendChild(libSectionHdr('Your saved presets',!hasBuiltin));
+    userSets.forEach((set,idx)=>list.appendChild(makeLibCard(set,idx,false)));
   }
+}
+
+// Keep renderLibPanel as a shim (called on open)
+function renderLibPanel(){
+  libSwitchTab(_libActiveTab);
 }
 
 function libSaveCurrent(){
@@ -3986,6 +4292,7 @@ function libDelete(idx){
       ensureHdr();
       if(!Array.isArray(S.hdr.fields)) S.hdr.fields=[];
       S.hdr.fields.push({label:'LABEL',value:''});
+      S.hdr.fieldsExpanded=true;
       save(); renderHdrFields();
       setTimeout(()=>{
         const rows=document.querySelectorAll('#sh-fields-list .sh-field-row');
@@ -4110,6 +4417,13 @@ document.getElementById('lib-save-name').addEventListener('keydown', e=>{ if(e.k
     if(e.key==='Enter'){e.preventDefault();closeModal(inpEl.value.trim());}
     if(e.key==='Escape'){e.preventDefault();closeModal(null);}
   });
+  // Enter confirms delete when the prompt input is not visible
+  document.addEventListener('keydown',e=>{
+    if(!overlay.classList.contains('show')) return;
+    if(inpEl.style.display!=='none') return; // prompt handles its own Enter
+    if(e.key==='Enter'){e.preventDefault();closeModal(true);}
+    if(e.key==='Escape'){e.preventDefault();closeModal(null);}
+  });
 })();
 
 // ── Open Tabs ────────────────────────────────────────────────
@@ -4213,6 +4527,88 @@ document.getElementById('storage-warn-close').addEventListener('click',()=>{
   _storageWarnDismissed=true;
   document.getElementById('storage-warn').style.display='none';
 });
+
+// ── First-run onboarding wizard ───────────────────────────────
+(function setupWizard(){
+  // Build wizard overlay HTML
+  const ov=document.createElement('div');
+  ov.id='onboard-ov';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px)';
+  ov.innerHTML=`
+<div style="background:var(--surface);border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.25);padding:36px 40px;width:440px;max-width:95vw">
+  <div style="font-size:22px;font-weight:700;color:var(--text-1);margin-bottom:6px">Welcome to Box Schedule 👋</div>
+  <div style="font-size:13px;color:var(--text-2);margin-bottom:28px">Let's set up your first schedule in a few quick steps.</div>
+
+  <label style="display:block;font-size:11px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Schedule name</label>
+  <input id="ob-name" type="text" value="My Schedule" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;color:var(--text-1);background:var(--surface-2);margin-bottom:18px">
+
+  <div style="display:flex;gap:16px;margin-bottom:18px">
+    <div style="flex:1">
+      <label style="display:block;font-size:11px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Start date</label>
+      <input id="ob-date" type="date" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;color:var(--text-1);background:var(--surface-2)">
+      <div style="font-size:10px;color:var(--text-3);margin-top:3px">Snaps to the Monday before</div>
+    </div>
+    <div style="flex:0 0 100px">
+      <label style="display:block;font-size:11px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Weeks</label>
+      <input id="ob-weeks" type="number" value="13" min="1" max="52" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;color:var(--text-1);background:var(--surface-2)">
+    </div>
+  </div>
+
+  <label style="display:block;font-size:11px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Event types (one per line)</label>
+  <textarea id="ob-events" rows="4" placeholder="e.g.\nShoot\nEdit\nColour" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;color:var(--text-1);background:var(--surface-2);resize:vertical;margin-bottom:24px"></textarea>
+
+  <button id="ob-go" style="width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:.2px">Let's go →</button>
+</div>`;
+  document.body.appendChild(ov);
+
+  // Pre-fill date with prev Monday
+  const dateInpOb=ov.querySelector('#ob-date');
+  dateInpOb.value=prevMonday();
+  // Snap on change
+  dateInpOb.addEventListener('change',()=>{dateInpOb.value=snapMonday(dateInpOb.value);});
+
+  ov.querySelector('#ob-go').addEventListener('click',()=>{
+    const name=(ov.querySelector('#ob-name').value||'').trim()||'My Schedule';
+    const chosenDate=snapMonday(dateInpOb.value||prevMonday());
+    const weeks=Math.max(1,Math.min(52,parseInt(ov.querySelector('#ob-weeks').value)||13));
+    const eventsRaw=(ov.querySelector('#ob-events').value||'').split('\n').map(l=>l.trim()).filter(Boolean);
+
+    // Update the current schedule
+    S.project=name;
+    S.startDate=chosenDate;
+    S.weeks=weeks;
+
+    // If user typed event types, create magnets in the first group
+    if(eventsRaw.length&&S.groups&&S.groups[0]){
+      eventsRaw.forEach((label,i)=>{
+        const exists=S.groups[0].magnets.some(m=>m.label.toLowerCase()===label.toLowerCase());
+        if(!exists){
+          const colors=['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16'];
+          S.groups[0].magnets.push({
+            id:'ob-mag-'+Date.now()+i,
+            label,
+            color:colors[i%colors.length],
+            subs:[]
+          });
+        }
+      });
+    }
+
+    save();
+    // Update UI
+    document.getElementById('proj-name').textContent=name;
+    document.getElementById('date-input').value=chosenDate;
+    document.getElementById('weeks-input').value=weeks;
+    rSidebar(); rCal(); renderTabBar();
+    ov.remove();
+  });
+
+  // Show or hide wizard
+  window._showWizard=function(){ov.style.display='flex';};
+  window._hideWizard=function(){ov.remove();};
+
+  if(!IS_FIRST_RUN) ov.remove();
+})();
 
 // ── Init ─────────────────────────────────────────────────────
 loadOpenTabs();
