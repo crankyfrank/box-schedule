@@ -2057,19 +2057,21 @@ document.getElementById('ep-sync').addEventListener('click',async()=>{
     showEpStatus('End time must be after start time (currently '+tm.start+' → '+tm.end+')',false);
     return;
   }
-  // Build base event body (no colorId in PATCH to avoid 400 on pre-existing events)
-  const evBody={
+  // Build PATCH body: no colorId, no conferenceData.createRequest on updates
+  // (both can cause 400 errors on pre-existing events; colorId/Meet is set on initial create only)
+  const evBodyPatch={
     summary:mag.label,
     start:allDay?{date:ds}:{dateTime:ds+'T'+startHMS,timeZone:TZ},
     end:allDay?{date:dsNext}:{dateTime:ds+'T'+endHMS,timeZone:TZ},
     description:desc||undefined,
     location:tm.location||undefined,
+  };
+  // POST (create) body includes colorId and Meet conference request
+  const colorId=gcalColorId(mag.color);
+  const evBodyCreate={
+    ...evBodyPatch, colorId,
     conferenceData:meet?{createRequest:{requestId:tk+'-'+Date.now(),conferenceSolutionKey:{type:'hangoutsMeet'}}}:undefined,
   };
-  // colorId only on POST (create) — PATCH without it leaves existing colour unchanged
-  const colorId=gcalColorId(mag.color);
-  const evBodyCreate={...evBody,colorId};
-  console.log('ep-sync →',calId, JSON.stringify(evBody,null,2));
   showEpStatus('Syncing…',null);
   const calPath='/calendars/'+encodeURIComponent(calId)+'/events';
   const qs=meet?'?conferenceDataVersion=1':'';
@@ -2077,10 +2079,9 @@ document.getElementById('ep-sync').addEventListener('click',async()=>{
     const res=await gcalFetch('POST',calPath+qs,evBodyCreate);
     if(res?.id){
       S.eventIds[tk]=res.id;
-      // Store which calendar this event lives on so future syncs go to the right place
       S.times[tk]=S.times[tk]||{}; S.times[tk].calId=calId;
       const link=res?.conferenceData?.hangoutLink||null;
-      if(link){S.times[tk]=S.times[tk]||{};S.times[tk].meetLink=link;}
+      if(link) S.times[tk].meetLink=link;
       save();
     }
     return res;
@@ -2089,16 +2090,20 @@ document.getElementById('ep-sync').addEventListener('click',async()=>{
     const ex=S.eventIds[tk];
     if(ex){
       try{
-        // PATCH uses evBody (no colorId) to avoid 400 on pre-existing events
-        const res=await gcalFetch('PATCH',calPath+'/'+encodeURIComponent(ex)+qs,evBody);
+        // PATCH — lean body only; if it fails for any reason fall back to delete + recreate
+        const res=await gcalFetch('PATCH',calPath+'/'+encodeURIComponent(ex),evBodyPatch);
         const link=res?.conferenceData?.hangoutLink||null;
         S.times[tk]=S.times[tk]||{};
-        S.times[tk].calId=calId; // persist which calendar holds this event
+        S.times[tk].calId=calId;
         if(link) S.times[tk].meetLink=link;
         save();
       }catch(e){
-        if(/404|410|not found/i.test(e.message)){delete S.eventIds[tk];await doCreate();}
-        else throw e;
+        // Any PATCH failure (stale ID, format mismatch, all-day→timed conversion, etc.)
+        // → clear the old ID and create a fresh event instead
+        console.warn('PATCH failed, recreating event:',e.message);
+        try{ await gcalFetch('DELETE',calPath+'/'+encodeURIComponent(ex)); }catch(_){}
+        delete S.eventIds[tk];
+        await doCreate();
       }
     } else {
       await doCreate();
@@ -2400,17 +2405,22 @@ document.getElementById('sp-push').addEventListener('click',async()=>{
     try{
       const ex=S.eventIds[ev.key];
       const calPath='/calendars/'+encodeURIComponent(S.syncCalId)+'/events';
-      // Base body shared by POST and PATCH — colorId only on POST (PATCH rejects it for some events)
-      const evBodyBase={
+      // PATCH body — lean: no colorId, no conferenceData.createRequest (both can cause 400 on existing events)
+      const evBodyPatch={
         summary:ev.summary,
         start:ev.allDay?{date:ev.startTime.slice(0,10)}:{dateTime:ev.startTime,timeZone:TZ},
         end:ev.allDay?{date:ev.endTime.slice(0,10)}:{dateTime:ev.endTime,timeZone:TZ},
         description:ev.desc||undefined,
         location:ev.loc||undefined,
         attendees:ev.inv.length?ev.inv.map(e=>({email:e})):undefined,
+      };
+      // POST (create) body adds colorId and Meet conference request
+      const evBodyCreate={
+        ...evBodyPatch,
+        colorId:ev.colorId||undefined,
         conferenceData:ev.meet?{createRequest:{requestId:ev.key+'-'+Date.now(),conferenceSolutionKey:{type:'hangoutsMeet'}}}:undefined,
       };
-      const evBody=ex?evBodyBase:{...evBodyBase,colorId:ev.colorId||undefined};
+      const evBody=evBodyPatch;
       // Helper to capture Meet link from a Google Calendar response
       function captureMeetLink(res,key){
         const link=res?.conferenceData?.hangoutLink||res?.hangoutLink||null;
@@ -2418,21 +2428,22 @@ document.getElementById('sp-push').addEventListener('click',async()=>{
       }
       if(ex){
         try{
-          const res=await gcalFetch('PATCH',calPath+'/'+encodeURIComponent(ex)+(ev.inv.length?'?sendUpdates=all':''),evBody);
+          // PATCH with lean body (no colorId, no conferenceData.createRequest)
+          const res=await gcalFetch('PATCH',calPath+'/'+encodeURIComponent(ex)+(ev.inv.length?'?sendUpdates=all':''),evBodyPatch);
           captureMeetLink(res,ev.key);
         }catch(patchErr){
-          // Stale ID (event deleted in Google Calendar) — clear it and create fresh
-          if(/404|not found/i.test(patchErr.message)){
-            delete S.eventIds[ev.key];
-            const qs=ev.inv.length?'?sendUpdates=all':ev.meet?'?conferenceDataVersion=1':'';
-            const res=await gcalFetch('POST',calPath+qs,evBody);
-            if(res?.id) S.eventIds[ev.key]=res.id;
-            captureMeetLink(res,ev.key);
-          } else { throw patchErr; }
+          // Any PATCH failure → clear stale ID and recreate with full body
+          console.warn('Bulk PATCH failed, recreating:',ev.key,patchErr.message);
+          try{ await gcalFetch('DELETE',calPath+'/'+encodeURIComponent(ex)); }catch(_){}
+          delete S.eventIds[ev.key];
+          const qs=ev.inv.length?'?sendUpdates=all':ev.meet?'?conferenceDataVersion=1':'';
+          const res=await gcalFetch('POST',calPath+qs,evBodyCreate);
+          if(res?.id) S.eventIds[ev.key]=res.id;
+          captureMeetLink(res,ev.key);
         }
       } else {
         const qs=ev.inv.length?'?sendUpdates=all':ev.meet?'?conferenceDataVersion=1':'';
-        const res=await gcalFetch('POST',calPath+qs,evBody);
+        const res=await gcalFetch('POST',calPath+qs,evBodyCreate);
         if(res?.id) S.eventIds[ev.key]=res.id;
         captureMeetLink(res,ev.key);
       }
