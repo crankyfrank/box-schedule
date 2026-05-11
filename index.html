@@ -798,6 +798,36 @@ function gcalSignIn(cb){
   if(!_gcalReady()){cb(null,'Google Sign-In not available — make sure your Client ID is set in the app');return;}
   _gcalTokenClient.requestAccessToken({prompt:_gcalToken?'':'consent'});
 }
+// Compute IANA timezone offset (minutes east of UTC) for a given naive local date+time string
+// Returns e.g. 600 for AEST (UTC+10), 660 for AEDT (UTC+11)
+function tzOffsetMin(dateStr,timeStr,tz){
+  try{
+    // Treat the local datetime as UTC temporarily, then see what the Intl API
+    // says that UTC moment is in (a) UTC and (b) the target timezone.
+    // The difference is the target timezone's UTC offset at that date/time.
+    const naiveUTC=new Date(dateStr+'T'+timeStr+'Z');
+    const fmt=(tzone)=>{
+      const parts=new Intl.DateTimeFormat('en-CA',{
+        timeZone:tzone,year:'numeric',month:'2-digit',day:'2-digit',
+        hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false
+      }).formatToParts(naiveUTC);
+      const p=Object.fromEntries(parts.map(x=>[x.type,x.value]));
+      return new Date(`${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}Z`).getTime();
+    };
+    return Math.round((fmt(tz)-fmt('UTC'))/60000);
+  }catch{return 600;} // fallback: AEST
+}
+// Build a full RFC 3339 dateTime string with explicit UTC offset, e.g. "2026-05-16T16:01:00+10:00"
+// This avoids Google Calendar API rejecting bare local times like "2026-05-16T16:01:00"
+function tzDateTime(dateStr,timeStr,tz){
+  const off=tzOffsetMin(dateStr,timeStr,tz);
+  const sign=off>=0?'+':'-';
+  const abs=Math.abs(off);
+  const h=String(Math.floor(abs/60)).padStart(2,'0');
+  const m=String(abs%60).padStart(2,'0');
+  return `${dateStr}T${timeStr}${sign}${h}:${m}`;
+}
+
 async function gcalFetch(method,path,body){
   if(!_gcalToken) throw new Error('Not signed in to Google');
   const opts={method,headers:{Authorization:'Bearer '+_gcalToken,'Content-Type':'application/json'}};
@@ -2049,7 +2079,8 @@ document.getElementById('ep-sync').addEventListener('click',async()=>{
   const allDay=!tm.start&&!tm.end;
   const meet=!!(tm.meet);
   // Convert HH:MM → HH:MM:SS (Google Calendar requires full RFC 3339 seconds)
-  const toHMS=t=>{if(!t)return null;const p=t.split(':');return p.length===2?t+':00':t;};
+  // Normalise stored time strings: trim whitespace, ensure HH:MM:SS
+  const toHMS=t=>{if(!t)return null;const s=String(t).trim();if(!s)return null;const p=s.split(':');return p.length===2?s+':00':s;};
   const startHMS=toHMS(tm.start)||'09:00:00';
   const endHMS=toHMS(tm.end)||'17:00:00';
   // Validate: end must be after start
@@ -2057,12 +2088,16 @@ document.getElementById('ep-sync').addEventListener('click',async()=>{
     showEpStatus('End time must be after start time (currently '+tm.start+' → '+tm.end+')',false);
     return;
   }
+  // Build full RFC 3339 dateTime strings with explicit UTC offset (avoids Google rejecting bare local times)
+  const startDT=allDay?null:tzDateTime(ds,startHMS,TZ);
+  const endDT=allDay?null:tzDateTime(ds,endHMS,TZ);
+  console.log('[ep-sync] date:',ds,'startHMS:',startHMS,'endHMS:',endHMS,'startDT:',startDT,'endDT:',endDT,'allDay:',allDay);
   // Build PATCH body: no colorId, no conferenceData.createRequest on updates
   // (both can cause 400 errors on pre-existing events; colorId/Meet is set on initial create only)
   const evBodyPatch={
     summary:mag.label,
-    start:allDay?{date:ds}:{dateTime:ds+'T'+startHMS,timeZone:TZ},
-    end:allDay?{date:dsNext}:{dateTime:ds+'T'+endHMS,timeZone:TZ},
+    start:allDay?{date:ds}:{dateTime:startDT,timeZone:TZ},
+    end:allDay?{date:dsNext}:{dateTime:endDT,timeZone:TZ},
     description:desc||undefined,
     location:tm.location||undefined,
   };
@@ -2112,8 +2147,9 @@ document.getElementById('ep-sync').addEventListener('click',async()=>{
     const calLabel=_calList.find(c=>c.id===calId)?.summary||calId;
     showEpStatus('✓ Synced → '+calLabel,true);
   }catch(err){
-    showEpStatus('Error: '+(err?.message||String(err)),false);
-    console.error('ep-sync error',err,'body:',evBody,'calId:',calId);
+    const diagStr=allDay?`all-day ${ds}`:`${startDT} → ${endDT}`;
+    showEpStatus(`Error: ${err?.message||String(err)} [${diagStr}]`,false);
+    console.error('ep-sync error',err,'startDT:',startDT,'endDT:',endDT,'body:',JSON.stringify(evBodyCreate),'calId:',calId);
   }
 });
 
@@ -2311,8 +2347,8 @@ function buildEvents(){
       const desc=[S.project, tm?.notes].filter(Boolean).join('\n\n');
       const loc=tm?.location||undefined;
       const meet=tm?.meet||false;
-      // toHMS: HH:MM → HH:MM:SS (Google requires full RFC 3339 seconds)
-      const toHMS2=t=>{if(!t)return null;const p=t.split(':');return p.length===2?t+':00':t;};
+      // toHMS: HH:MM → HH:MM:SS (Google requires full RFC 3339 seconds); also trims whitespace
+      const toHMS2=t=>{if(!t)return null;const s=String(t).trim();if(!s)return null;const p=s.split(':');return p.length===2?s+':00':s;};
       // allDay only when NEITHER start nor end is set — mirrors ep-sync logic
       const allDay2=!tm?.start&&!tm?.end;
       const startHMS2=toHMS2(tm?.start)||'09:00:00';
@@ -2324,9 +2360,12 @@ function buildEvents(){
         evts.push({key,summary:mag.label,_invalid:`End time before start (${tm.start} → ${tm.end})`});
         continue;
       }
+      // Build full RFC 3339 dateTime strings with explicit UTC offset
+      const startDT2=allDay2?null:tzDateTime(ds,startHMS2,TZ);
+      const endDT2=allDay2?null:tzDateTime(ds,endHMS2,TZ);
       evts.push(allDay2
         ? {key,summary:mag.label,startTime:ds,endTime:dsNext,allDay:true,inv,colorId,desc,loc,meet}
-        : {key,summary:mag.label,startTime:`${ds}T${startHMS2}`,endTime:`${ds}T${endHMS2}`,allDay:false,inv,colorId,desc,loc,meet});
+        : {key,summary:mag.label,startTime:startDT2,endTime:endDT2,allDay:false,inv,colorId,desc,loc,meet});
     }
   }
   return evts;
