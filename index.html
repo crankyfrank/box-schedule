@@ -167,6 +167,16 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg)
 .bar:hover{filter:brightness(.88)}
 /* .bar.soft — provisional times, no visual clutter */
 .bar.grabbing{opacity:.25;cursor:grabbing}
+/* Multi-select highlight */
+.bar.selected{outline:2px dashed #fff;outline-offset:-2px;box-shadow:0 0 0 2px var(--accent),var(--shadow-sm);z-index:6;cursor:grab}
+.bar.selected:hover{filter:brightness(.95)}
+/* Rubber-band selection rectangle */
+#sel-rect{display:none;position:fixed;border:1.5px dashed var(--accent);background:rgba(99,102,241,.1);border-radius:3px;pointer-events:none;z-index:500}
+/* Select-mode button */
+#sel-mode-btn{display:flex;align-items:center;gap:5px}
+#sel-mode-btn.active{background:#ede9fe!important;border-color:#8b5cf6!important;color:#6d28d9!important;font-weight:600}
+/* Cursor hint when select mode is active */
+body.select-mode #cal .dcell{cursor:crosshair}
 .blabel{font-size:9px;font-weight:700;color:inherit;opacity:.95;padding:0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;pointer-events:none;letter-spacing:.1px}
 .btime{font-size:8px;color:inherit;opacity:.75;padding-right:4px;white-space:nowrap;flex-shrink:0;pointer-events:none}
 
@@ -500,8 +510,11 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
     <button class="mdbtn" id="hdr-toggle-btn" title="Show / hide schedule info header" style="padding:5px 7px">ℹ</button>
     <div class="tb-sep"></div>
     <input type="date" id="date-input" title="Start date">
-    <input type="number" id="weeks-input" value="13" min="1" max="52" title="Number of weeks">
+    <button id="prepend-week-btn" class="mdbtn" style="padding:4px 7px;font-size:11px" title="Insert a blank week at the start of the schedule — all existing events shift down">↑W</button>
+    <input type="number" id="weeks-input" value="13" min="1" max="52" title="Number of weeks (append weeks at end)">
     <div class="tb-sep"></div>
+    <button id="sel-mode-btn" class="mdbtn" style="background:#fafaf8;padding:5px 8px;font-size:11px" title="Select mode — drag to select events, then drag the group to move them (shortcut: Q)">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><path d="M5 3l14 9-7 1-3 7z"/></svg>Select</button>
     <button id="lib-btn" class="mdbtn" style="background:#fafaf8;padding:5px 7px" title="Magnet Library">📚</button>
     <div style="position:relative">
       <button class="mdbtn" id="holiday-btn" style="background:#fafaf8;padding:5px 7px" title="Add public holidays">🗓</button>
@@ -536,8 +549,15 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
         <div class="exp-item" id="exp-csv" style="padding:10px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f0f0ea">
           <span style="font-size:15px">📊</span><div><div style="font-weight:600;color:#111">Export to CSV</div><div style="font-size:10px;color:#aaa">Open in Google Sheets or Excel</div></div>
         </div>
-        <div class="exp-item" id="exp-pdf" style="padding:10px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px">
+        <div class="exp-item" id="exp-pdf" style="padding:10px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f0f0ea">
           <span style="font-size:15px">🖨</span><div><div style="font-weight:600;color:#111">Print / Save as PDF</div><div style="font-size:10px;color:#aaa">Use browser print → Save as PDF</div></div>
+        </div>
+        <div style="padding:8px 14px 4px;font-size:9px;font-weight:700;color:#bbb;letter-spacing:.5px;text-transform:uppercase">Share</div>
+        <div class="exp-item" id="exp-share" style="padding:10px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f0f0ea">
+          <span style="font-size:15px">🔗</span><div><div style="font-weight:600;color:#111">Copy share code</div><div style="font-size:10px;color:#aaa">Send to a colleague with Box Schedule</div></div>
+        </div>
+        <div class="exp-item" id="exp-import-code" style="padding:10px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px">
+          <span style="font-size:15px">📥</span><div><div style="font-weight:600;color:#111">Import from share code…</div><div style="font-size:10px;color:#aaa">Paste a code received from a colleague</div></div>
         </div>
       </div>
     </div>
@@ -548,6 +568,7 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
     <span id="storage-warn-close" title="Dismiss">✕</span>
   </div>
   <div id="tab-bar"></div>
+  <div id="sel-rect"></div>
   <div id="cal-wrap">
     <div id="schedule-header">
       <div class="sh-fields">
@@ -1111,6 +1132,57 @@ function getParentMag(subId){
 }
 function startDt(){return new Date(S.startDate+'T00:00:00');}
 function dayDate(di){const d=new Date(startDt());d.setDate(d.getDate()+di);return d;}
+
+// Remap all cell/time/eventId indices by deltaDays.
+// Use when start date changes and the user wants events to STAY on their calendar dates.
+function shiftScheduleEvents(deltaDays){
+  if(!deltaDays) return;
+  const remap=(obj)=>{
+    const out={};
+    Object.keys(obj||{}).forEach(key=>{
+      const dash=key.indexOf('-');
+      if(dash<0){return;}
+      const di=+key.slice(0,dash);
+      const rest=key.slice(dash); // includes the leading '-'
+      const newDi=di+deltaDays;
+      if(newDi>=0) out[newDi+rest]=obj[key];
+    });
+    return out;
+  };
+  // S.cells keys are plain integers (di index)
+  const newCells={};
+  Object.keys(S.cells||{}).forEach(di=>{
+    const newDi=+di+deltaDays;
+    if(newDi>=0) newCells[newDi]=S.cells[di];
+  });
+  S.cells=newCells;
+  S.times=remap(S.times);
+  S.eventIds=remap(S.eventIds);
+}
+
+// Tiny two-choice dialog (returns Promise<boolean>: true=first option, false=second, null=cancel)
+function showChoiceDialog(title, msg, opt1, opt2){
+  return new Promise(resolve=>{
+    const overlay=document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+    const box=document.createElement('div');
+    box.style.cssText='background:var(--surface);border-radius:var(--r-lg);padding:24px;width:360px;max-width:94vw;box-shadow:var(--shadow-lg);font-family:inherit';
+    box.innerHTML=`<div style="font-size:14px;font-weight:700;color:var(--text-1);margin-bottom:8px">${title}</div>
+      <div style="font-size:12px;color:var(--text-2);margin-bottom:18px;line-height:1.5">${msg}</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button id="chdlg-a" style="padding:10px 14px;border:1.5px solid var(--accent-border);border-radius:var(--r-md);background:var(--accent);color:#fff;font-size:12px;font-weight:600;cursor:pointer;text-align:left">${opt1}</button>
+        <button id="chdlg-b" style="padding:10px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);color:var(--text-1);font-size:12px;font-weight:500;cursor:pointer;text-align:left">${opt2}</button>
+        <button id="chdlg-x" style="padding:6px;border:none;background:none;color:var(--text-3);font-size:11px;cursor:pointer">Cancel</button>
+      </div>`;
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    const close=(v)=>{overlay.remove();resolve(v);};
+    box.querySelector('#chdlg-a').onclick=()=>close(true);
+    box.querySelector('#chdlg-b').onclick=()=>close(false);
+    box.querySelector('#chdlg-x').onclick=()=>close(null);
+    overlay.addEventListener('pointerdown',ev=>{if(ev.target===overlay)close(null);});
+  });
+}
 // Use LOCAL date parts to avoid UTC offset shifting the date (critical for non-UTC timezones)
 function localDateStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function totalDays(){return S.weeks*7;}
@@ -1169,7 +1241,7 @@ function clearHil(){
 
 // ── Drag state ──────────────────────────────────────────────
 let pd={
-  type:null,          // 'magnet'|'bar'|'paint'
+  type:null,          // 'magnet'|'bar'|'paint'|'select-rect'|'group-move'
   magId:null,
   barSrcDi:null,
   barMagId:null,
@@ -1177,8 +1249,38 @@ let pd={
   moved:false,
   lastPaintDi:-1,
   altCopy:false,
+  groupStartDi:-1,  // for group-move: the di of the bar the user grabbed
 };
 const THRESH=5;
+
+// ── Multi-select state ───────────────────────────────────────
+let selMode=false;
+let selectedCells=new Set(); // Set of "di-magId" keys
+const selRect=document.getElementById('sel-rect');
+
+function setSelMode(on){
+  selMode=on;
+  const btn=document.getElementById('sel-mode-btn');
+  btn.classList.toggle('active',on);
+  document.body.classList.toggle('select-mode',on);
+  if(!on){ clearSelection(); }
+}
+function clearSelection(){
+  selectedCells.clear();
+  document.querySelectorAll('.bar.selected').forEach(b=>b.classList.remove('selected'));
+}
+function updateSelectionUI(){
+  document.querySelectorAll('.bar.selected').forEach(b=>b.classList.remove('selected'));
+  selectedCells.forEach(key=>{
+    const dash=key.indexOf('-');
+    const di=key.slice(0,dash);
+    const magId=key.slice(dash+1);
+    document.querySelectorAll(`.bar[data-di="${di}"][data-magid="${magId}"]`)
+      .forEach(b=>b.classList.add('selected'));
+  });
+}
+
+document.getElementById('sel-mode-btn').addEventListener('click',()=>setSelMode(!selMode));
 
 // ─────────────────────────────────────────────────────────────
 //  SINGLE document-level pointer handlers (reliable for all targets)
@@ -1215,6 +1317,33 @@ document.addEventListener('pointerdown', e=>{
   if(e.target.isContentEditable) return;
   // ── UI chrome
   if(e.target.closest('#toolbar,#sync-panel,#event-panel,#sb-footer,#addgrp-btn,#sync-btn,#sb-header,#schedule-header,button')) return;
+
+  // ── Select mode ──────────────────────────────────────────────
+  if(selMode){
+    e.preventDefault();
+    if(bar){
+      const key=bar.dataset.di+'-'+bar.dataset.magid;
+      if(selectedCells.has(key)&&selectedCells.size>1){
+        // Drag the whole selection
+        pd={type:'group-move',startX:e.clientX,startY:e.clientY,moved:false,
+            groupStartDi:+bar.dataset.di,magId:null,barSrcDi:null,barMagId:null,lastPaintDi:-1,altCopy:false};
+      } else {
+        // Toggle selection for this single bar
+        if(!e.shiftKey) selectedCells.clear();
+        if(selectedCells.has(key)) selectedCells.delete(key);
+        else selectedCells.add(key);
+        updateSelectionUI();
+        pd={type:'group-move',startX:e.clientX,startY:e.clientY,moved:false,
+            groupStartDi:+bar.dataset.di,magId:null,barSrcDi:null,barMagId:null,lastPaintDi:-1,altCopy:false};
+      }
+    } else {
+      // Drag on empty space → rubber-band
+      if(!e.shiftKey) clearSelection();
+      pd={type:'select-rect',startX:e.clientX,startY:e.clientY,moved:false,
+          magId:null,barSrcDi:null,barMagId:null,lastPaintDi:-1,altCopy:false,groupStartDi:-1};
+    }
+    return;
+  }
 
   if(mag){
     // ── Detect double-click on the label (dblclick event is eaten by preventDefault)
@@ -1257,9 +1386,9 @@ document.addEventListener('pointermove', e=>{
 
   const dx=e.clientX-pd.startX, dy=e.clientY-pd.startY;
 
-  // Activate drag after threshold
+  // Activate drag after threshold (select-rect bypasses so rect starts immediately)
   if(!pd.moved){
-    if(Math.sqrt(dx*dx+dy*dy)<THRESH) return;
+    if(pd.type!=='select-rect'&&Math.sqrt(dx*dx+dy*dy)<THRESH) return;
     pd.moved=true;
     if(pd.type==='magnet'){
       const mag=getMag(pd.magId);
@@ -1271,6 +1400,9 @@ document.addEventListener('pointermove', e=>{
       showGhost(lbl, pd.altCopy?'#059669':mag.color, e.clientX, e.clientY);
       document.querySelectorAll(`.bar[data-di="${pd.barSrcDi}"][data-magid="${pd.barMagId}"]`)
         .forEach(b=>b.classList.add('grabbing'));
+    } else if(pd.type==='group-move'){
+      const count=selectedCells.size;
+      showGhost(`↔ Move ${count} event${count!==1?'s':''}`, '#6366f1', e.clientX, e.clientY);
     }
   }
 
@@ -1316,6 +1448,25 @@ document.addEventListener('pointermove', e=>{
         schedReCal();
       }
     }
+  } else if(pd.type==='select-rect'){
+    const x1=Math.min(pd.startX,e.clientX), y1=Math.min(pd.startY,e.clientY);
+    const x2=Math.max(pd.startX,e.clientX), y2=Math.max(pd.startY,e.clientY);
+    selRect.style.cssText=`display:block;left:${x1}px;top:${y1}px;width:${x2-x1}px;height:${y2-y1}px`;
+    // Select all bars whose centres fall within the rect
+    selectedCells.clear();
+    document.querySelectorAll('.bar').forEach(b=>{
+      const r=b.getBoundingClientRect();
+      const cx=(r.left+r.right)/2, cy=(r.top+r.bottom)/2;
+      if(cx>=x1&&cx<=x2&&cy>=y1&&cy<=y2) selectedCells.add(b.dataset.di+'-'+b.dataset.magid);
+    });
+    updateSelectionUI();
+  } else if(pd.type==='group-move'){
+    const count=selectedCells.size;
+    updateGhost(`↔ Move ${count} event${count!==1?'s':''}`, '#6366f1', e.clientX, e.clientY);
+    const el=document.elementFromPoint(e.clientX,e.clientY);
+    const cell=el?.closest('.dcell');
+    clearHil();
+    if(cell) hilCell(cell,'drop-move');
   }
 }, {passive:true});
 
@@ -1386,17 +1537,55 @@ document.addEventListener('pointerup', e=>{
     }
   } else if(pd.type==='paint'){
     save(); rCal();
+  } else if(pd.type==='select-rect'){
+    selRect.style.display='none';
+    updateSelectionUI();
+    if(selectedCells.size>0){
+      const count=selectedCells.size;
+      showGhost(`${count} event${count!==1?'s':''} selected — drag any to move group`,'#6366f1',e.clientX,e.clientY);
+      setTimeout(hideGhost,1800);
+    }
+  } else if(pd.type==='group-move'){
+    hideGhost();
+    clearHil();
+    if(wasMoved&&cell){
+      const toDi=+cell.dataset.di;
+      const deltaDi=toDi-pd.groupStartDi;
+      if(deltaDi!==0){
+        const entries=[...selectedCells].map(key=>{
+          const dash=key.indexOf('-');
+          return{di:+key.slice(0,dash),magId:key.slice(dash+1)};
+        });
+        // Sort to avoid self-collision: if moving forward sort desc, else asc
+        entries.sort((a,b)=>deltaDi>0?b.di-a.di:a.di-b.di);
+        const newSel=new Set();
+        const maxDi=totalDays()-1;
+        entries.forEach(({di,magId})=>{
+          const newDi=di+deltaDi;
+          if(newDi>=0&&newDi<=maxDi){
+            moveBar(di,newDi,magId);
+            newSel.add(newDi+'-'+magId);
+          } else {
+            newSel.add(di+'-'+magId);
+          }
+        });
+        selectedCells=newSel;
+        save();rCal();
+        requestAnimationFrame(updateSelectionUI);
+      }
+    }
   }
 
   pd={type:null,magId:null,barSrcDi:null,barMagId:null,startX:0,startY:0,
-      moved:false,lastPaintDi:-1,altCopy:false};
+      moved:false,lastPaintDi:-1,altCopy:false,groupStartDi:-1};
 });
 
 document.addEventListener('pointercancel',()=>{
   clearHil(); hideGhost();
+  selRect.style.display='none';
   document.querySelectorAll('.grabbing').forEach(el=>el.classList.remove('grabbing'));
   pd={type:null,magId:null,barSrcDi:null,barMagId:null,startX:0,startY:0,
-      moved:false,lastPaintDi:-1,altCopy:false};
+      moved:false,lastPaintDi:-1,altCopy:false,groupStartDi:-1};
   rCal();
 });
 
@@ -2174,15 +2363,65 @@ document.getElementById('proj-name').addEventListener('blur',e=>{
 });
 const dateInp=document.getElementById('date-input');
 dateInp.value=S.startDate;
-dateInp.addEventListener('change',e=>{S.startDate=e.target.value;save();rCal();});
+dateInp.addEventListener('change',async e=>{
+  const newDate=e.target.value;
+  const oldDate=S.startDate;
+  if(!oldDate||oldDate===newDate){S.startDate=newDate;save();rCal();return;}
+  // Compute delta in calendar days
+  const deltaDays=Math.round((new Date(newDate+'T00:00:00')-new Date(oldDate+'T00:00:00'))/86400000);
+  // Check whether any events exist worth asking about
+  const hasEvents=Object.values(S.cells||{}).some(arr=>(arr||[]).length>0);
+  if(!hasEvents||!deltaDays){S.startDate=newDate;save();rCal();return;}
+  const dir=deltaDays>0?'forward':'back';
+  const n=Math.abs(deltaDays);
+  const choice=await showChoiceDialog(
+    'Start date moved',
+    `The schedule start moved ${n} day${n===1?'':'s'} ${dir}. What should happen to your events?`,
+    '↕ Shift events — keep their relative positions in the schedule',
+    '📌 Pin events — keep them on their original calendar dates'
+  );
+  if(choice===null){
+    // User cancelled — restore old value
+    dateInp.value=oldDate;
+    return;
+  }
+  S.startDate=newDate;
+  if(choice===false){
+    // "Pin" — keep calendar dates → events need to move by -deltaDays in the grid
+    shiftScheduleEvents(-deltaDays);
+  }
+  // choice===true: "Shift" — events stay at same di, correspond to new dates (default)
+  save();rCal();
+});
 const weeksInp=document.getElementById('weeks-input');
 weeksInp.value=S.weeks;
 weeksInp.addEventListener('change',e=>{S.weeks=Math.max(1,Math.min(52,parseInt(e.target.value)||13));save();rCal();});
+
+// Prepend week: add a blank week at the top, push all events down by 7 days
+document.getElementById('prepend-week-btn').addEventListener('click',()=>{
+  // Move start date back 7 days
+  const d=new Date(S.startDate+'T00:00:00');
+  d.setDate(d.getDate()-7);
+  S.startDate=localDateStr(d);
+  // Grow schedule by 1 week
+  S.weeks=Math.min(52,S.weeks+1);
+  // Shift all event data forward by 7 days so they stay on their original calendar dates
+  shiftScheduleEvents(7);
+  document.getElementById('date-input').value=S.startDate;
+  document.getElementById('weeks-input').value=S.weeks;
+  save();rCal();
+});
 // Add Category button is rendered inside rSidebar()
 document.addEventListener('keydown',e=>{
   if(e.target.isContentEditable||e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
-  if(e.key==='Escape'){S.activeMag=null;selBar=null;document.getElementById('event-panel').classList.remove('open');save();rSidebar();}
+  if(e.key==='Escape'){
+    if(selMode&&selectedCells.size>0){clearSelection();return;}
+    S.activeMag=null;selBar=null;
+    document.getElementById('event-panel').classList.remove('open');
+    save();rSidebar();
+  }
   if(e.key.toLowerCase()==='e'){S.eraseMode=!S.eraseMode;save();updateModeUI();}
+  if(e.key.toLowerCase()==='q'){setSelMode(!selMode);}
   // Cmd/Ctrl+S → save to file
   if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveScheduleToFile();}
 });
@@ -3440,6 +3679,102 @@ function importBxsText(text, filename){
 document.getElementById('exp-save').addEventListener('click', saveScheduleToFile);
 document.getElementById('exp-open').addEventListener('click', openScheduleFromFile);
 
+// ── Share / Import ────────────────────────────────────────────
+function encodeShareCode(data){
+  try{ return btoa(unescape(encodeURIComponent(JSON.stringify(data)))); }
+  catch{ return null; }
+}
+function decodeShareCode(code){
+  try{ return JSON.parse(decodeURIComponent(escape(atob(code.trim())))); }
+  catch{ return null; }
+}
+
+document.getElementById('exp-share').addEventListener('click',async()=>{
+  document.getElementById('export-menu').style.display='none';
+  const code=encodeShareCode(S);
+  if(!code){ showToast('Failed to encode schedule'); return; }
+  try{
+    await navigator.clipboard.writeText(code);
+    showToast('Share code copied! Send it to a colleague — they can import it from Files → Import from share code…');
+  }catch{
+    // Fallback: show in a prompt dialog so user can manually copy
+    await showShareCodeDialog(code);
+  }
+});
+
+function showShareCodeDialog(code){
+  return new Promise(resolve=>{
+    const overlay=document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+    const box=document.createElement('div');
+    box.style.cssText='background:var(--surface);border-radius:var(--r-lg);padding:24px;width:480px;max-width:96vw;box-shadow:var(--shadow-lg);font-family:inherit';
+    box.innerHTML=`<div style="font-size:13px;font-weight:700;color:var(--text-1);margin-bottom:8px">📋 Share code</div>
+      <div style="font-size:11px;color:var(--text-2);margin-bottom:10px">Copy this code and send it to a colleague. They can import it via Files → Import from share code.</div>
+      <textarea id="share-code-ta" style="width:100%;height:100px;font-size:10px;font-family:monospace;padding:8px;border:1px solid var(--border);border-radius:var(--r-md);resize:none;background:var(--surface-2)" readonly></textarea>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button id="sc-copy" style="flex:1;padding:9px;background:var(--accent);color:#fff;border:none;border-radius:var(--r-md);font-size:12px;font-weight:600;cursor:pointer">Copy to clipboard</button>
+        <button id="sc-close" style="padding:9px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);font-size:12px;cursor:pointer">Close</button>
+      </div>`;
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    box.querySelector('#share-code-ta').value=code;
+    box.querySelector('#sc-copy').onclick=async()=>{
+      try{ await navigator.clipboard.writeText(code); showToast('Copied!'); }
+      catch{ box.querySelector('#share-code-ta').select(); document.execCommand('copy'); showToast('Copied!'); }
+    };
+    const close=()=>{overlay.remove();resolve();};
+    box.querySelector('#sc-close').onclick=close;
+    overlay.addEventListener('pointerdown',ev=>{if(ev.target===overlay)close();});
+  });
+}
+
+document.getElementById('exp-import-code').addEventListener('click',async()=>{
+  document.getElementById('export-menu').style.display='none';
+  const code=await showImportCodeDialog();
+  if(!code) return;
+  const data=decodeShareCode(code);
+  if(!data||!data.groups||!data.startDate){
+    showToast('Invalid share code — make sure you copied the full code');
+    return;
+  }
+  const nm=data.project||data.name||'Imported Schedule';
+  const id='sch-'+Date.now();
+  const key='bxs5_sch_'+id;
+  localStorage.setItem(key,JSON.stringify(data));
+  schIndex.push({id,name:nm,updatedAt:new Date().toISOString()});
+  saveSchIndex();
+  // Switch to the new schedule
+  currentSchId=id;
+  S=data;
+  document.getElementById('date-input').value=S.startDate;
+  document.getElementById('weeks-input').value=S.weeks;
+  save();rCal();rSidebar();renderTabBar();
+  showToast('Schedule imported: '+nm);
+});
+
+function showImportCodeDialog(){
+  return new Promise(resolve=>{
+    const overlay=document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+    const box=document.createElement('div');
+    box.style.cssText='background:var(--surface);border-radius:var(--r-lg);padding:24px;width:480px;max-width:96vw;box-shadow:var(--shadow-lg);font-family:inherit';
+    box.innerHTML=`<div style="font-size:13px;font-weight:700;color:var(--text-1);margin-bottom:8px">📥 Import from share code</div>
+      <div style="font-size:11px;color:var(--text-2);margin-bottom:10px">Paste the share code you received from a colleague.</div>
+      <textarea id="import-code-ta" style="width:100%;height:100px;font-size:10px;font-family:monospace;padding:8px;border:1px solid var(--border);border-radius:var(--r-md);resize:none;background:var(--surface-2)" placeholder="Paste share code here…"></textarea>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button id="ic-ok" style="flex:1;padding:9px;background:var(--accent);color:#fff;border:none;border-radius:var(--r-md);font-size:12px;font-weight:600;cursor:pointer">Import</button>
+        <button id="ic-cancel" style="padding:9px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);font-size:12px;cursor:pointer">Cancel</button>
+      </div>`;
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    const close=(v)=>{overlay.remove();resolve(v);};
+    box.querySelector('#ic-ok').onclick=()=>close(box.querySelector('#import-code-ta').value.trim());
+    box.querySelector('#ic-cancel').onclick=()=>close(null);
+    overlay.addEventListener('pointerdown',ev=>{if(ev.target===overlay)close(null);});
+    setTimeout(()=>box.querySelector('#import-code-ta').focus(),50);
+  });
+}
+
 // Wire up the auto-save status label in the toolbar
 _bxsAutoSaveEl = document.getElementById('bxs-autosave-lbl');
 
@@ -3706,8 +4041,13 @@ function libDelete(idx){
 
 // Panel open/close
 document.getElementById('lib-btn').addEventListener('click', ()=>{
-  renderLibPanel();
-  document.getElementById('lib-panel').classList.add('open');
+  const lp=document.getElementById('lib-panel');
+  if(lp.classList.contains('open')){
+    lp.classList.remove('open');
+  } else {
+    renderLibPanel();
+    lp.classList.add('open');
+  }
 });
 document.getElementById('lib-close').addEventListener('click', ()=>{
   document.getElementById('lib-panel').classList.remove('open');
