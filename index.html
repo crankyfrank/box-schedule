@@ -524,92 +524,106 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
 
 <div id="main">
   <div id="toolbar">
-    <div style="position:relative;margin-left:4px">
-      <button id="sch-btn" class="mdbtn" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#eef0fa;border-color:#c0c4e8;color:#333;font-weight:600">📋 …  ▾</button>
-      <div id="sch-panel" style="display:none;position:absolute;left:0;top:36px;background:#fff;border:1px solid #e0e0da;border-radius:10px;box-shadow:0 4px 24px rgba(0,0,0,.15);z-index:400;width:264px;overflow:hidden">
-        <div id="sch-list" style="max-height:260px;overflow-y:auto"></div>
-        <div style="padding:8px;border-top:1px solid #f0f0ea;display:flex;gap:6px">
-          <button id="sch-new" style="flex:1;padding:7px;border:1px dashed #c0c0da;border-radius:7px;font-size:11px;cursor:pointer;background:#fafaf8;color:#555;white-space:nowrap">+ New schedule</button>
+
+    <!-- ── LEFT: File button (schedules + files + shortcuts) ── -->
+    <div style="position:relative;margin-left:4px;flex-shrink:0">
+      <button class="mdbtn" id="export-btn" style="background:#fafaf8;padding:5px 9px;font-size:11px;font-weight:600" title="File — schedules, save, export">⊞ File</button>
+      <div id="export-menu" style="display:none;position:absolute;left:0;top:36px;background:#fff;border:1px solid #e0e0da;border-radius:10px;box-shadow:0 4px 24px rgba(0,0,0,.15);z-index:400;width:270px;overflow:hidden">
+
+        <!-- Schedules -->
+        <div style="padding:8px 14px 4px;font-size:9px;font-weight:700;color:#bbb;letter-spacing:.5px;text-transform:uppercase">Schedules</div>
+        <div id="sch-list" style="max-height:200px;overflow-y:auto;border-bottom:1px solid #f0f0ea"></div>
+        <div style="padding:8px;border-bottom:1px solid #f0f0ea;display:flex;gap:6px">
+          <button id="sch-new" style="flex:1;padding:7px;border:1px dashed #c0c0da;border-radius:7px;font-size:11px;cursor:pointer;background:#fafaf8;color:#555;white-space:nowrap">+ New</button>
           <button id="sch-copy" style="flex:1;padding:7px;border:1px dashed #c0c0da;border-radius:7px;font-size:11px;cursor:pointer;background:#fafaf8;color:#555;white-space:nowrap">⊕ Copy this</button>
         </div>
-        <div style="padding:0 8px 8px">
-          <button id="sch-save-tpl" style="width:100%;padding:7px;border:1px dashed #c0c0da;border-radius:7px;font-size:11px;cursor:pointer;background:#fafaf8;color:#555">⭐ Save labels as reusable template</button>
+        <div style="padding:6px 8px;border-bottom:1px solid #f0f0ea">
+          <button id="sch-save-tpl" style="width:100%;padding:7px;border:1px dashed #c0c0da;border-radius:7px;font-size:11px;cursor:pointer;background:#fafaf8;color:#555">⭐ Save labels as template</button>
         </div>
-      </div>
-    </div>
-    <button id="sync-btn" class="mdbtn" style="background:#eff6ff;border-color:#bfdbfe;color:#2563eb;font-weight:600;padding:5px 8px;font-size:11px;letter-spacing:-.1px" title="Sync to Google Calendar">☁ Sync</button>
-    <div style="flex:1"></div>
-    <div style="display:flex;align-items:center;gap:5px">
-    <button class="mdbtn" id="hdr-toggle-btn" title="Show / hide schedule info header" style="padding:5px 7px">ℹ</button>
-    <div class="tb-sep"></div>
-    <input type="date" id="date-input" title="Start date">
-    <button id="prepend-week-btn" class="mdbtn" style="padding:4px 7px;font-size:11px" title="Insert a blank week at the start — all events shift down">↑W</button>
-    <input type="number" id="weeks-input" value="13" min="1" max="52" title="Total weeks in schedule">
-    <button id="append-week-btn" class="mdbtn" style="padding:4px 7px;font-size:11px" title="Add a blank week at the end of the schedule">W↓</button>
-    <div class="tb-sep"></div>
-    <button id="sel-mode-btn" class="mdbtn" style="background:#fafaf8;padding:5px 8px;font-size:11px" title="Select mode — drag to select events, then drag the group to move them (shortcut: Q)">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><path d="M5 3l14 9-7 1-3 7z"/></svg>Select</button>
-    <div style="position:relative">
-      <button id="kbd-btn" class="mdbtn" style="background:#fafaf8;padding:5px 7px;font-size:11px;color:var(--text-3)" title="Keyboard shortcuts">⌨</button>
-      <div id="kbd-menu" style="display:none;position:absolute;left:0;top:34px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:300;width:240px;padding:12px 14px">
-        <div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Keyboard shortcuts</div>
-        <table style="width:100%;border-collapse:collapse;font-size:11px">
-          <tr><td style="padding:3px 0;color:var(--text-2)">Select mode</td><td style="text-align:right"><kbd style="background:var(--surface-2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px">Q</kbd></td></tr>
-          <tr><td style="padding:3px 0;color:var(--text-2)">Erase mode</td><td style="text-align:right"><kbd style="background:var(--surface-2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px">E</kbd></td></tr>
-          <tr><td style="padding:3px 0;color:var(--text-2)">Clear selection / cancel</td><td style="text-align:right"><kbd style="background:var(--surface-2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px">Esc</kbd></td></tr>
-          <tr><td style="padding:3px 0;color:var(--text-2)">Copy event while dragging</td><td style="text-align:right"><kbd style="background:var(--surface-2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px">Alt</kbd> + drag</td></tr>
-          <tr><td style="padding:3px 0;color:var(--text-2)">Add to selection</td><td style="text-align:right"><kbd style="background:var(--surface-2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px">Shift</kbd> + click</td></tr>
-          <tr><td style="padding:3px 0;color:var(--text-2)">Confirm delete dialog</td><td style="text-align:right"><kbd style="background:var(--surface-2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px">Enter</kbd></td></tr>
+
+        <!-- Save & Open -->
+        <div style="padding:8px 14px 4px;font-size:9px;font-weight:700;color:#bbb;letter-spacing:.5px;text-transform:uppercase">Save &amp; Open</div>
+        <div class="exp-item" id="exp-save" style="padding:9px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f0f0ea">
+          <span style="font-size:15px">💾</span><div><div style="font-weight:600;color:#111">Save to file…</div><div style="font-size:10px;color:#aaa">Save as .bxs file to any folder</div></div>
+        </div>
+        <div class="exp-item" id="exp-open" style="padding:9px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f0f0ea">
+          <span style="font-size:15px">📂</span><div><div style="font-weight:600;color:#111">Open file…</div><div style="font-size:10px;color:#aaa">Load a .bxs schedule file</div></div>
+        </div>
+
+        <!-- Export -->
+        <div style="padding:8px 14px 4px;font-size:9px;font-weight:700;color:#bbb;letter-spacing:.5px;text-transform:uppercase">Export</div>
+        <div class="exp-item" id="exp-csv" style="padding:9px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f0f0ea">
+          <span style="font-size:15px">📊</span><div><div style="font-weight:600;color:#111">Export to CSV</div><div style="font-size:10px;color:#aaa">Open in Google Sheets or Excel</div></div>
+        </div>
+        <div class="exp-item" id="exp-pdf" style="padding:9px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f0f0ea">
+          <span style="font-size:15px">🖨</span><div><div style="font-weight:600;color:#111">Print / Save as PDF</div><div style="font-size:10px;color:#aaa">Use browser print → Save as PDF</div></div>
+        </div>
+
+        <!-- Share -->
+        <div style="padding:8px 14px 4px;font-size:9px;font-weight:700;color:#bbb;letter-spacing:.5px;text-transform:uppercase">Share</div>
+        <div class="exp-item" id="exp-share" style="padding:9px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f0f0ea">
+          <span style="font-size:15px">🔗</span><div><div style="font-weight:600;color:#111">Copy share code</div><div style="font-size:10px;color:#aaa">Send to a colleague with Box Schedule</div></div>
+        </div>
+        <div class="exp-item" id="exp-import-code" style="padding:9px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f0f0ea">
+          <span style="font-size:15px">📥</span><div><div style="font-weight:600;color:#111">Import from share code…</div><div style="font-size:10px;color:#aaa">Paste a code received from a colleague</div></div>
+        </div>
+
+        <!-- Keyboard shortcuts -->
+        <div style="padding:8px 14px 4px;font-size:9px;font-weight:700;color:#bbb;letter-spacing:.5px;text-transform:uppercase">Keyboard shortcuts</div>
+        <table style="width:100%;border-collapse:collapse;font-size:11px;padding:0 14px 10px;display:table">
+          <tbody>
+          <tr><td style="padding:3px 14px;color:var(--text-2)">Select mode</td><td style="padding:3px 14px;text-align:right"><kbd style="background:#f5f5f2;border:1px solid #e0e0da;border-radius:3px;padding:1px 5px;font-size:10px">Q</kbd></td></tr>
+          <tr><td style="padding:3px 14px;color:var(--text-2)">Erase mode</td><td style="padding:3px 14px;text-align:right"><kbd style="background:#f5f5f2;border:1px solid #e0e0da;border-radius:3px;padding:1px 5px;font-size:10px">E</kbd></td></tr>
+          <tr><td style="padding:3px 14px;color:var(--text-2)">Cancel / clear selection</td><td style="padding:3px 14px;text-align:right"><kbd style="background:#f5f5f2;border:1px solid #e0e0da;border-radius:3px;padding:1px 5px;font-size:10px">Esc</kbd></td></tr>
+          <tr><td style="padding:3px 14px;color:var(--text-2)">Copy event while dragging</td><td style="padding:3px 14px;text-align:right"><kbd style="background:#f5f5f2;border:1px solid #e0e0da;border-radius:3px;padding:1px 5px;font-size:10px">Alt</kbd> + drag</td></tr>
+          <tr><td style="padding:3px 14px 8px;color:var(--text-2)">Add to selection</td><td style="padding:3px 14px 8px;text-align:right"><kbd style="background:#f5f5f2;border:1px solid #e0e0da;border-radius:3px;padding:1px 5px;font-size:10px">Shift</kbd> + click</td></tr>
+          </tbody>
         </table>
       </div>
     </div>
-    <button id="lib-btn" class="mdbtn" style="background:#fafaf8;padding:5px 8px;font-size:11px" title="Magnet Library">📚 Library</button>
-    <div style="position:relative">
-      <button class="mdbtn" id="holiday-btn" style="background:#fafaf8;padding:5px 7px" title="Add public holidays">🗓</button>
-      <div id="holiday-menu" style="display:none;position:absolute;right:0;top:32px;background:#fff;border:1px solid #e0e0da;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:300;width:220px;padding:12px 14px">
-        <div style="font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Auto-populate public holidays</div>
-        <div style="display:flex;gap:6px;margin-bottom:8px">
-          <div style="flex:1">
-            <div style="font-size:10px;color:#888;margin-bottom:3px">Country</div>
-            <input id="hol-country" maxlength="2" value="AU" style="width:100%;padding:5px 8px;border:1px solid #e0e0da;border-radius:6px;font-size:12px;text-transform:uppercase">
+
+    <!-- Hidden stubs so existing JS event-listener lookups don't throw -->
+    <button id="sch-btn" style="display:none"></button>
+    <div id="sch-panel" style="display:none!important"></div>
+    <button id="kbd-btn" style="display:none"></button>
+    <div id="kbd-menu" style="display:none!important"></div>
+
+    <!-- ── CENTRE: tools ── -->
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:5px;flex-wrap:wrap">
+      <button class="mdbtn" id="hdr-toggle-btn" title="Show / hide schedule info header" style="padding:5px 7px">ℹ</button>
+      <div class="tb-sep"></div>
+      <input type="date" id="date-input" title="Start date">
+      <button id="prepend-week-btn" class="mdbtn" style="padding:4px 7px;font-size:11px" title="Insert a blank week at the start — all events shift down">↑W</button>
+      <input type="number" id="weeks-input" value="13" min="1" max="52" title="Total weeks in schedule">
+      <button id="append-week-btn" class="mdbtn" style="padding:4px 7px;font-size:11px" title="Add a blank week at the end of the schedule">W↓</button>
+      <div class="tb-sep"></div>
+      <button id="sel-mode-btn" class="mdbtn" style="background:#fafaf8;padding:5px 8px;font-size:11px" title="Select mode — drag to select events, then drag the group to move them (shortcut: Q)">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><path d="M5 3l14 9-7 1-3 7z"/></svg>Select</button>
+      <button id="lib-btn" class="mdbtn" style="background:#fafaf8;padding:5px 8px;font-size:11px" title="Magnet Library">📚 Library</button>
+      <div style="position:relative">
+        <button class="mdbtn" id="holiday-btn" style="background:#fafaf8;padding:5px 7px" title="Add public holidays">🗓</button>
+        <div id="holiday-menu" style="display:none;position:absolute;right:0;top:32px;background:#fff;border:1px solid #e0e0da;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:300;width:220px;padding:12px 14px">
+          <div style="font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Auto-populate public holidays</div>
+          <div style="display:flex;gap:6px;margin-bottom:8px">
+            <div style="flex:1">
+              <div style="font-size:10px;color:#888;margin-bottom:3px">Country</div>
+              <input id="hol-country" maxlength="2" value="AU" style="width:100%;padding:5px 8px;border:1px solid #e0e0da;border-radius:6px;font-size:12px;text-transform:uppercase">
+            </div>
+            <div style="flex:1">
+              <div style="font-size:10px;color:#888;margin-bottom:3px">State (optional)</div>
+              <input id="hol-state" maxlength="6" placeholder="e.g. AU-VIC" style="width:100%;padding:5px 8px;border:1px solid #e0e0da;border-radius:6px;font-size:12px;text-transform:uppercase">
+            </div>
           </div>
-          <div style="flex:1">
-            <div style="font-size:10px;color:#888;margin-bottom:3px">State (optional)</div>
-            <input id="hol-state" maxlength="6" placeholder="e.g. AU-VIC" style="width:100%;padding:5px 8px;border:1px solid #e0e0da;border-radius:6px;font-size:12px;text-transform:uppercase">
-          </div>
-        </div>
-        <button id="hol-go" style="width:100%;padding:8px;background:#2563eb;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer">Populate holidays</button>
-        <div id="hol-status" style="font-size:10px;color:#888;margin-top:6px;min-height:14px;text-align:center"></div>
-      </div>
-    </div>
-    <span id="bxs-autosave-lbl" style="display:none;font-size:10px;color:var(--text-3);font-weight:500;transition:opacity .4s;white-space:nowrap"></span>
-    <div style="position:relative;margin-left:8px">
-      <button class="mdbtn" id="export-btn" style="background:#fafaf8;padding:5px 9px" title="Save, open and export files">⊞ Files</button>
-      <div id="export-menu" style="display:none;position:absolute;right:0;top:32px;background:#fff;border:1px solid #e0e0da;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:300;min-width:210px;overflow:hidden">
-        <div style="padding:8px 14px 4px;font-size:9px;font-weight:700;color:#bbb;letter-spacing:.5px;text-transform:uppercase">Save &amp; Open</div>
-        <div class="exp-item" id="exp-save" style="padding:10px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f0f0ea">
-          <span style="font-size:15px">💾</span><div><div style="font-weight:600;color:#111">Save to file…</div><div style="font-size:10px;color:#aaa">Save as .bxs file to any folder</div></div>
-        </div>
-        <div class="exp-item" id="exp-open" style="padding:10px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f0f0ea">
-          <span style="font-size:15px">📂</span><div><div style="font-weight:600;color:#111">Open file…</div><div style="font-size:10px;color:#aaa">Load a .bxs schedule file</div></div>
-        </div>
-        <div style="padding:8px 14px 4px;font-size:9px;font-weight:700;color:#bbb;letter-spacing:.5px;text-transform:uppercase">Export</div>
-        <div class="exp-item" id="exp-csv" style="padding:10px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f0f0ea">
-          <span style="font-size:15px">📊</span><div><div style="font-weight:600;color:#111">Export to CSV</div><div style="font-size:10px;color:#aaa">Open in Google Sheets or Excel</div></div>
-        </div>
-        <div class="exp-item" id="exp-pdf" style="padding:10px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f0f0ea">
-          <span style="font-size:15px">🖨</span><div><div style="font-weight:600;color:#111">Print / Save as PDF</div><div style="font-size:10px;color:#aaa">Use browser print → Save as PDF</div></div>
-        </div>
-        <div style="padding:8px 14px 4px;font-size:9px;font-weight:700;color:#bbb;letter-spacing:.5px;text-transform:uppercase">Share</div>
-        <div class="exp-item" id="exp-share" style="padding:10px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f0f0ea">
-          <span style="font-size:15px">🔗</span><div><div style="font-weight:600;color:#111">Copy share code</div><div style="font-size:10px;color:#aaa">Send to a colleague with Box Schedule</div></div>
-        </div>
-        <div class="exp-item" id="exp-import-code" style="padding:10px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px">
-          <span style="font-size:15px">📥</span><div><div style="font-weight:600;color:#111">Import from share code…</div><div style="font-size:10px;color:#aaa">Paste a code received from a colleague</div></div>
+          <button id="hol-go" style="width:100%;padding:8px;background:#2563eb;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer">Populate holidays</button>
+          <div id="hol-status" style="font-size:10px;color:#888;margin-top:6px;min-height:14px;text-align:center"></div>
         </div>
       </div>
+      <span id="bxs-autosave-lbl" style="display:none;font-size:10px;color:var(--text-3);font-weight:500;transition:opacity .4s;white-space:nowrap"></span>
     </div>
-    </div>
+
+    <!-- ── RIGHT: Sync button ── -->
+    <button id="sync-btn" class="mdbtn" style="background:#eff6ff;border-color:#bfdbfe;color:#2563eb;font-weight:600;padding:5px 8px;font-size:11px;letter-spacing:-.1px;flex-shrink:0;margin-right:4px" title="Sync to Google Calendar">☁ Sync</button>
+
   </div>
   <div id="storage-warn">
     <span>⚠</span><span id="storage-warn-msg">Storage getting full — export schedules to .bxs files to free space</span>
@@ -2947,21 +2961,7 @@ document.getElementById('sp-pull').addEventListener('click',async()=>{
 
 // ── Public Holidays (Nager.Date public API) ───────────────────
 (function(){
-  // Keyboard shortcuts popover
-  (()=>{
-    const kbdBtn=document.getElementById('kbd-btn');
-    const kbdMenu=document.getElementById('kbd-menu');
-    if(kbdBtn&&kbdMenu){
-      kbdBtn.addEventListener('click',e=>{
-        e.stopPropagation();
-        kbdMenu.style.display=kbdMenu.style.display==='none'?'block':'none';
-      });
-      document.addEventListener('pointerdown',e=>{
-        if(!e.target.closest('#kbd-btn')&&!e.target.closest('#kbd-menu'))
-          kbdMenu.style.display='none';
-      },{capture:true,passive:true});
-    }
-  })();
+  // Keyboard shortcuts are now inside the File menu — no separate popover needed.
 
   const btn=document.getElementById('holiday-btn');
   const menu=document.getElementById('holiday-menu');
@@ -3392,6 +3392,7 @@ function rSchedulePicker(){
     nameSpan.addEventListener('click',()=>{
       if(!isActive) switchSchedule(sch.id);
       document.getElementById('sch-panel').style.display='none';
+      const em=document.getElementById('export-menu'); if(em) em.style.display='none';
     });
     renBtn.addEventListener('click',e=>{e.stopPropagation(); renameSchedule(sch.id);});
     delBtn.addEventListener('click',e=>{e.stopPropagation(); deleteSchedule(sch.id);});
@@ -3424,6 +3425,7 @@ document.getElementById('sch-save-tpl').addEventListener('click',async()=>{
   customs.push({id:'ctpl-'+Date.now(),icon,name,desc:'Custom template',folder:name,groups:grps,custom:true});
   saveCustomTemplates(customs);
   document.getElementById('sch-panel').style.display='none';
+  const em2=document.getElementById('export-menu'); if(em2) em2.style.display='none';
   // Brief confirmation
   const btn=document.getElementById('sch-save-tpl');
   const orig=btn.textContent; btn.textContent='✓ Saved!';
@@ -3440,7 +3442,9 @@ const exportMenu = document.getElementById('export-menu');
 if(exportBtn && exportMenu){
   exportBtn.addEventListener('click', e => {
     e.stopPropagation();
-    exportMenu.style.display = exportMenu.style.display === 'none' ? 'block' : 'none';
+    const opening = exportMenu.style.display === 'none';
+    exportMenu.style.display = opening ? 'block' : 'none';
+    if(opening) rSchedulePicker(); // refresh schedule list when File menu opens
   });
   document.addEventListener('pointerdown', e => {
     if(!e.target.closest('#export-btn') && !e.target.closest('#export-menu'))
